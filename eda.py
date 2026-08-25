@@ -1,10 +1,15 @@
 """
-EDA e pré-processamento — Previsão de preços de FIIs brasileiros
-==================================================================
+EDA e pré-processamento — Previsão de preços em múltiplas classes de ativos
+==============================================================================
 
-Lê os dois CSVs gerados por coleta_dados.py, junta cotação diária com
-indicadores mensais (dividend yield, valor patrimonial), trata dados
-faltantes, cria features derivadas e gera gráficos exploratórios.
+Lê os CSVs gerados por coleta_dados.py (FIIs + ETF via B3 COTAHIST, indicadores
+mensais de FII via CVM, e Tesouro Direto via Tesouro Transparente), junta tudo em
+um único dataset longo (uma linha por ticker/dia), trata dados faltantes, cria
+features derivadas e gera gráficos exploratórios.
+
+Cada classe de ativo tem colunas específicas que não existem nas outras (ex.: DY%
+e P/VP só fazem sentido para FII; taxa só existe para Tesouro Direto) — isso é
+esperado e tratado como NaN nas linhas onde não se aplica, não é erro de dados.
 
 Como usar:
     python eda.py
@@ -30,29 +35,32 @@ GRAFICOS_DIR.mkdir(exist_ok=True)
 
 
 def carregar_dados():
-    cotacoes = pd.read_csv(BASE_DIR / "cotacoes_fiis.csv", parse_dates=["data"])
+    cotacoes = pd.read_csv(BASE_DIR / "cotacoes_mercado.csv", parse_dates=["data"])
     indicadores = pd.read_csv(BASE_DIR / "indicadores_mensais_fiis.csv", parse_dates=["data_referencia"])
-    return cotacoes, indicadores
+    tesouro = pd.read_csv(BASE_DIR / "tesouro_direto.csv", parse_dates=["data"])
+    return cotacoes, indicadores, tesouro
 
 
-def diagnosticar_qualidade(cotacoes: pd.DataFrame) -> None:
+def diagnosticar_qualidade(df: pd.DataFrame) -> None:
     """Mostra um resumo rápido de completude dos dados por ticker."""
     print("\n=== Diagnóstico de qualidade dos dados ===")
-    for ticker, grupo in cotacoes.groupby("ticker"):
+    for ticker, grupo in df.groupby("ticker"):
         grupo = grupo.sort_values("data")
         dias_uteis_esperados = pd.bdate_range(grupo["data"].min(), grupo["data"].max())
         cobertura = len(grupo) / len(dias_uteis_esperados)
-        n_nulos = grupo[["abertura", "maximo", "minimo", "fechamento"]].isna().sum().sum()
+        n_nulos_fechamento = grupo["fechamento"].isna().sum()
         print(
-            f"{ticker}: {len(grupo)} linhas | período {grupo['data'].min().date()} a "
-            f"{grupo['data'].max().date()} | cobertura ~{cobertura:.1%} dos dias úteis | "
-            f"{n_nulos} valores nulos em OHLC"
+            f"{ticker} ({grupo['classe_ativo'].iloc[0]}): {len(grupo)} linhas | período "
+            f"{grupo['data'].min().date()} a {grupo['data'].max().date()} | cobertura "
+            f"~{cobertura:.1%} dos dias úteis | {n_nulos_fechamento} valores nulos em fechamento"
         )
 
 
 def mesclar_cotacoes_indicadores(cotacoes: pd.DataFrame, indicadores: pd.DataFrame) -> pd.DataFrame:
-    """Junta a cotação diária com os indicadores mensais (DY, valor patrimonial),
-    propagando o último valor mensal conhecido para os dias daquele mês (forward-fill).
+    """Junta a cotação diária (FIIs + ETF) com os indicadores mensais de FII (DY,
+    valor patrimonial), propagando o último valor mensal conhecido para os dias
+    daquele mês (forward-fill). O ETF não tem indicadores CVM, então essas colunas
+    ficam NaN para ele — esperado, não é erro.
     """
     cotacoes = cotacoes.copy()
     cotacoes["ano_mes"] = cotacoes["data"].dt.to_period("M")
@@ -76,8 +84,19 @@ def mesclar_cotacoes_indicadores(cotacoes: pd.DataFrame, indicadores: pd.DataFra
     return df
 
 
+def combinar_classes_ativo(cotacoes_com_indicadores: pd.DataFrame, tesouro: pd.DataFrame) -> pd.DataFrame:
+    """Concatena FIIs+ETF (com indicadores) e Tesouro Direto em um único dataset
+    longo. Colunas que só existem em uma classe (ex.: volume_financeiro para
+    FII/ETF, taxa para Tesouro) viram NaN nas linhas da outra classe — esperado.
+    """
+    return pd.concat([cotacoes_com_indicadores, tesouro], ignore_index=True, sort=False)
+
+
 def criar_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Cria features de séries temporais: lags, médias móveis e retorno diário."""
+    """Cria features de séries temporais: lags, médias móveis e retorno diário.
+    Aplicadas por ticker (groupby), então funcionam igual para qualquer classe de
+    ativo — FII, ETF ou Tesouro Direto.
+    """
     df = df.sort_values(["ticker", "data"]).copy()
 
     for lag in [1, 5, 20]:
@@ -92,6 +111,9 @@ def criar_features(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     df["retorno_diario"] = df.groupby("ticker")["fechamento"].pct_change()
+
+    # Features específicas de FII (ficam NaN para ETF e Tesouro, que não têm
+    # valor patrimonial de cota nem dividend yield mensal nesse formato).
     df["p_vp"] = df["fechamento"] / df["Valor_Patrimonial_Cotas"]  # preço sobre valor patrimonial
 
     # DY da CVM vem como fração decimal (ex.: 0.005723 = 0,57% no mês), confirmado
@@ -113,22 +135,27 @@ def criar_features(df: pd.DataFrame) -> pd.DataFrame:
     df["target_fechamento_t1"] = df.groupby("ticker")["fechamento"].shift(-1)
 
     # Alvo alternativo: variação percentual de D para D+1. Em preço bruto, "prever o
-    # mesmo preço de hoje" já é quase ótimo (FIIs de papel têm variação diária pequena),
-    # o que favorece artificialmente um baseline ingênuo. Em retorno, a previsão trivial
-    # (0%) não tem essa vantagem embutida, o que testa melhor se o modelo captura sinal real.
+    # mesmo preço de hoje" já é quase ótimo (ativos de baixa volatilidade diária têm
+    # variação pequena), o que favorece artificialmente um baseline ingênuo. Em
+    # retorno, a previsão trivial (0%) não tem essa vantagem embutida, o que testa
+    # melhor se o modelo captura sinal real.
     df["target_retorno_pct_t1"] = (df["target_fechamento_t1"] - df["fechamento"]) / df["fechamento"] * 100
 
     return df
 
 
 def gerar_graficos(df: pd.DataFrame) -> None:
-    # 1) Histórico de preços por ticker
+    # 1) Histórico de preços por ticker (dois eixos: renda fixa tem preços de
+    # unidade muito diferente de FII/ETF, então normaliza para base 100 para
+    # permitir comparação visual de desempenho relativo).
     fig, ax = plt.subplots(figsize=(10, 5))
     for ticker, grupo in df.groupby("ticker"):
-        ax.plot(grupo["data"], grupo["fechamento"], label=ticker)
-    ax.set_title("Histórico de preço de fechamento")
+        grupo = grupo.sort_values("data")
+        base_100 = grupo["fechamento"] / grupo["fechamento"].iloc[0] * 100
+        ax.plot(grupo["data"], base_100, label=ticker)
+    ax.set_title("Histórico de preço (base 100 no início da série)")
     ax.set_xlabel("Data")
-    ax.set_ylabel("Preço de fechamento (R$)")
+    ax.set_ylabel("Índice (início = 100)")
     ax.legend()
     fig.tight_layout()
     fig.savefig(GRAFICOS_DIR / "precos_historico.png", dpi=120)
@@ -145,12 +172,12 @@ def gerar_graficos(df: pd.DataFrame) -> None:
     fig.savefig(GRAFICOS_DIR / "distribuicao_retornos.png", dpi=120)
     plt.close(fig)
 
-    # 3) Dividend yield mensal ao longo do tempo
+    # 3) Dividend yield mensal ao longo do tempo (só existe para FIIs)
     fig, ax = plt.subplots(figsize=(10, 5))
-    for ticker, grupo in df.groupby("ticker"):
+    for ticker, grupo in df[df["classe_ativo"] == "FII"].groupby("ticker"):
         mensal = grupo.drop_duplicates(subset=["data"]).set_index("data")["dy_mensal_pct"]
         ax.plot(mensal.index, mensal.values, label=ticker)
-    ax.set_title("Dividend yield mensal (%)")
+    ax.set_title("Dividend yield mensal dos FIIs (%)")
     ax.set_xlabel("Data")
     ax.set_ylabel("DY mensal (%)")
     ax.legend()
@@ -158,7 +185,9 @@ def gerar_graficos(df: pd.DataFrame) -> None:
     fig.savefig(GRAFICOS_DIR / "dividend_yield_mensal.png", dpi=120)
     plt.close(fig)
 
-    # 4) Correlação entre features numéricas (todos os tickers juntos)
+    # 4) Correlação entre features numéricas (todos os tickers juntos; colunas
+    # específicas de uma classe têm correlação calculada só sobre as linhas onde
+    # existem, via pairwise-deletion padrão do pandas)
     colunas_corr = [
         "fechamento", "volume_financeiro", "dy_mensal_pct",
         "p_vp", "retorno_diario", "media_movel_20d", "target_fechamento_t1",
@@ -174,7 +203,7 @@ def gerar_graficos(df: pd.DataFrame) -> None:
         for j in range(len(colunas_corr)):
             ax.text(j, i, f"{corr.iloc[i, j]:.2f}", ha="center", va="center", fontsize=8)
     fig.colorbar(im)
-    ax.set_title("Correlação entre features")
+    ax.set_title("Correlação entre features (linhas de FII)")
     fig.tight_layout()
     fig.savefig(GRAFICOS_DIR / "correlacao_features.png", dpi=120)
     plt.close(fig)
@@ -183,10 +212,12 @@ def gerar_graficos(df: pd.DataFrame) -> None:
 
 
 def main():
-    cotacoes, indicadores = carregar_dados()
-    diagnosticar_qualidade(cotacoes)
+    cotacoes, indicadores, tesouro = carregar_dados()
 
-    df = mesclar_cotacoes_indicadores(cotacoes, indicadores)
+    df_cotacoes = mesclar_cotacoes_indicadores(cotacoes, indicadores)
+    df = combinar_classes_ativo(df_cotacoes, tesouro)
+    diagnosticar_qualidade(df)
+
     df = criar_features(df)
 
     caminho_final = BASE_DIR / "dataset_final.csv"

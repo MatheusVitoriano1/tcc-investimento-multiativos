@@ -1,8 +1,10 @@
-# Contexto do TCC — Previsão de preços de FIIs brasileiros
+# Contexto do TCC — Previsão de preços e planejamento de investimento multi-ativos
 
 ## Sobre o projeto
 - TCC de Ciência da Computação (8º semestre), modalidade **Protótipo**, individual.
-- Tema: previsão de preços de um grupo pequeno de FIIs brasileiros usando análise de dados.
+- Tema (atualizado em 24/08): previsão de preços e planejamento de investimento entre 3 classes de
+  ativos brasileiros — FIIs de papel, ETF de ações e Tesouro Direto — usando análise de dados e
+  aprendizado de máquina. Começou só com FIIs; ver seção "Expansão para múltiplas classes de ativos".
 - Prazos: Checkpoint 16/10, AO1 19/10, AO2 02/11.
 
 ## Decisões já tomadas
@@ -147,10 +149,134 @@ mais perfis), mas o foco imediato do TCC é esse protótipo. Decisões tomadas c
   atualizam ao trocar o perfil, sem erros de console.
 - Como rodar: `.\venv\Scripts\python.exe -m streamlit run app_streamlit.py`
 
+## Critérios oficiais do TCC (FAM) — lidos em 24/08
+Usuário adicionou `Critérios obrigatórios.pdf` e `Manual_TCC_FAM_2026_2_Revisado.pdf` à pasta.
+Modalidade confirmada: **Protótipo** (individual — realização individual é excepcional e depende de
+aprovação da coordenação, segundo o manual; vale confirmar se isso já foi aprovado).
+
+**Achado crítico**: o Checkpoint (e o TCC inteiro) deve ser entregue no **template oficial da FAM**
+para Protótipo (arquivo Word/PDF próprio, baixado do Canvas) — "não reutilize o antigo modelo de
+artigo ou monografia curta". `checkpoint.html` (criado antes de ler estes documentos) é só um
+painel de acompanhamento local — NÃO é o arquivo a ser enviado no Canvas. O usuário vai baixar o
+template do Canvas e enviar para eu preencher.
+
+**Estrutura obrigatória do documento (modalidade Protótipo)**:
+Capa e identificação dos autores → Título/resumo/palavras-chave → 1 Introdução → 2 Fundamentação
+teórica → 3 Metodologia e planejamento do protótipo → 4 Desenvolvimento do protótipo → 5 Testes,
+resultados e discussão → 6 Considerações finais → Referências → Apêndices/anexos com evidências.
+Parte textual (Introdução às Considerações Finais): **10 a 15 páginas** (capa, resumo, referências e
+anexos não contam).
+
+**Formatação exigida**: A4, fonte Arial 12 no corpo, espaçamento 1,5 (simples em citações
+longas/notas/legendas/referências), margens sup/esq 3cm e inf/dir 2cm, citações e referências em
+ABNT, arquivo final em PDF, nome do arquivo `TCC_MODALIDADE_TITULO-CURTO_GRUPO.pdf`.
+
+**Etapas de entrega**: Tema e grupo → Checkpoint (avalia coerência/viabilidade, sem nota own neste
+manual, mas o outro documento diz 0 ponto) → AO1 (até 4 pontos) → AO2 (até 6 pontos) →
+aprovação = nota final ≥ 6,0 + frequência ≥ 75%.
+
+**O que precisa estar pronto até o Checkpoint** (segundo o Roteiro): template preenchido com
+integrantes, título provisório, problema, objetivo geral + específicos, introdução iniciada,
+fundamentação teórica iniciada, descrição da solução, escopo definido (funcionalidades essenciais
+vs desejáveis vs fora do escopo), lista inicial de requisitos, tecnologias escolhidas, esboço/
+diagrama/wireframe, planejamento das etapas, fontes iniciais organizadas. **Ainda não redigimos
+formalmente**: título provisório, problema de pesquisa (como pergunta), objetivo geral (verbo no
+infinitivo, só 1) e objetivos específicos (3 a 5) — precisam ser escritos seguindo esse formato
+antes do checkpoint.
+
+**Regras de uso de IA que precisam ser seguidas neste projeto**: declarar ferramenta, finalidade e
+verificação humana (nota/apêndice); nunca inventar referências (sempre verificar na fonte
+original); não usar IA como autora; não inserir dados pessoais/RA/documentos nas ferramentas.
+Vale redigir a declaração de uso de IA (modelo sugerido no documento) para constar no TCC.
+
+**Sem pesquisa com pessoas**: o projeto não usa entrevistas/questionários/dados pessoais (só dados
+públicos de mercado), então essa restrição não afeta o escopo atual — bom ponto a mencionar como
+"não aplicável" se perguntado.
+
+## Protótipo standalone em HTML (24/08)
+Criado `site_prototipo.html` — versão 100% estática (sem servidor, sem dependências externas) do
+app de recomendação, para servir de evidência/anexo no TCC e para demonstração na banca sem precisar
+rodar Python/Streamlit. Reimplementa em JavaScript puro a mesma lógica de `recomendacao.py`
+(perfis de risco, projeção por horizonte, simulação de aportes), com os dados dos 3 fundos
+pré-calculados e embutidos no arquivo (não lê CSV em tempo de execução). Inclui gráfico de evolução
+em SVG feito à mão (sem biblioteca). Testado com Playwright: interatividade (troca de perfil,
+orçamento, data) funciona e reproduz exatamente os mesmos valores do app Streamlit, sem erros de
+console. Abrir direto no navegador (duplo clique) — não precisa de `streamlit run`.
+
+## Expansão para múltiplas classes de ativos (24/08, sessão seguinte)
+Usuário observou que o gráfico de projeção do site estava "reto demais" (não refletia variação real
+de mercado) e pediu para adicionar outras classes de ativos além de FIIs, com dados válidos e
+modelos treinados. Implementado:
+
+### Novas fontes de dados
+- **Tesouro Direto** — Tesouro Transparente (`precotaxatesourodireto.csv`, ~14MB, todos os títulos
+  desde 2007). Confirmado via WebSearch + inspeção direta do CSV bruto (colunas: Tipo Titulo, Data
+  Vencimento, Data Base, Taxa/PU Compra/Venda Manha). Escolhidos 2 títulos com histórico cobrindo
+  2024-2026: **Tesouro Selic 01/03/2029** (pós-fixado, baixíssima volatilidade) e **Tesouro IPCA+
+  15/05/2035** (real + inflação, mais volátil por duration risk). Preço de referência usado:
+  "PU Venda Manha". `coleta_dados.py:baixar_tesouro_direto()`.
+- **ETF de ações (BOVA11)** — reaproveita a mesma B3 COTAHIST já usada para os FIIs (é o mesmo tipo
+  de arquivo/parser, só adicionar o ticker à lista). `TICKERS_ETF` em `coleta_dados.py`.
+- `coleta_dados.py` reescrito: `cotacoes_fiis.csv` virou **`cotacoes_mercado.csv`** (FIIs + ETF, com
+  coluna `classe_ativo`); novo `tesouro_direto.csv`. `indicadores_mensais_fiis.csv` inalterado (só
+  FIIs têm Informe Mensal CVM).
+
+### Pipeline adaptado para multi-classe
+- `eda.py`: `carregar_dados()`/`combinar_classes_ativo()` juntam as 3 fontes num único dataset longo
+  (uma linha por ticker/dia). Features comuns (lags, médias móveis, retorno, alvos) calculadas por
+  ticker via groupby, funcionam igual para qualquer classe. Features específicas de FII (P/VP, DY%)
+  ficam NaN nas linhas de ETF/Tesouro — esperado, não é erro. Gráfico de preços agora em base 100
+  (escalas de preço muito diferentes entre classes: FII ~R$10-100, Tesouro PU ~R$2000-20000).
+- `modelagem.py`: `FEATURES_POR_CLASSE` (FII usa DY/P-VP/volume; ETF usa só volume; Renda Fixa usa a
+  taxa do título). Roda os 4 modelos para os 6 tickers.
+- `recomendacao.py`: faixa de risco agora é **por classe de ativo** (`FAIXA_RISCO_POR_CLASSE`:
+  Renda Fixa=Baixo, FII=Intermediário, ETF_ACOES=Alto) em vez do ranking relativo artificial anterior
+  — muito mais defensável, já que agora são classes genuinamente diferentes (confirmado no gráfico de
+  preços base-100: Tesouro Selic quase reto, BOVA11 com oscilações fortes, FIIs no meio).
+
+### Achado novo na modelagem (6 ativos)
+Para FIIs e BOVA11 (mercado líquido), o padrão já conhecido se repete: XGBoost bate Prophet, mas
+nenhum modelo bate a persistência ingênua (mercado eficiente). A **exceção é o Tesouro Selic**: o
+XGBoost (retorno) bate a persistência de forma esmagadora (MAE retorno 0,055pp → 0,0015pp, acurácia
+direcional 100%) porque o preço é quase determinístico. E um achado colateral instrutivo: o
+**XGBoost (preço bruto) teve desempenho péssimo no Tesouro Selic** (MAE 680, pior que persistência)
+porque árvores de decisão não extrapolam além da faixa de preços vista no treino — como o PU do
+título só cresce, o teste cai fora do intervalo visto no treino. É um argumento técnico concreto (não
+só "remove viés artificial") para preferir alvo em retorno (%) sobre preço bruto, documentado nos
+comentários de `modelagem.py` e no `checkpoint.html`.
+
+### Gráfico "linha reta" corrigido — simulação de Monte Carlo
+Adicionado `simular_trajetorias_mensais()` em `recomendacao.py`: em vez de uma única linha
+determinística de juros compostos, simula 1000 trajetórias (Python) / 500 (JS) com retornos mensais
+aleatórios (normal, média = retorno esperado, desvio = volatilidade mensal histórica real do ativo) e
+plota a faixa entre os percentis 10 e 90 + mediana. Resultado visual confirmado: Tesouro Selic tem
+banda quase invisível (baixíssima volatilidade), BOVA11 tem banda bem larga (alta volatilidade) —
+exatamente o comportamento esperado. Implementado em paralelo em `app_streamlit.py` (Plotly,
+`np.random.default_rng`) e `site_prototipo.html` (JS puro: PRNG mulberry32 + Box-Muller, sem
+dependências externas).
+
+### Apps atualizados
+- `app_streamlit.py` e `site_prototipo.html`: 3 faixas de risco (Baixo/Intermediário/Alto), tabela de
+  perfis com `classe_ativo` e volatilidade mensal, gráfico com banda de Monte Carlo por ativo. Ambos
+  retestados ponta a ponta com Playwright (troca de faixa de risco, orçamento, data), sem erros de
+  console, valores batendo entre as duas versões.
+- `checkpoint.html` atualizado: tabela de resultados com os 6 ativos × 4 modelos, achado principal
+  reescrito (Tesouro Selic + falha de extrapolação do XGBoost em preço bruto), screenshots trocados
+  (`app_perfil_baixo.png`, `app_perfil_alto.png`), limitações revisadas.
+- `.gitignore`: adicionado `dados/tesouro_raw/` (cache bruto do CSV do Tesouro, ~14MB, reproduzível).
+
+### Como rodar tudo do zero
+```
+.\venv\Scripts\python.exe coleta_dados.py --anos 2024 2025 2026
+.\venv\Scripts\python.exe eda.py
+.\venv\Scripts\python.exe modelagem.py
+.\venv\Scripts\python.exe -m streamlit run app_streamlit.py   # ou abrir site_prototipo.html direto
+```
+
 ## Próximos passos do cronograma
-- EDA e pré-processamento: prazo até 05/10 (concluído, adiantado)
-- Modelagem (Prophet + XGBoost + baseline de persistência): primeira rodada concluída em
-  24/08. Falta: discutir o achado acima no texto, considerar se vale tunar hiperparâmetros
-  do XGBoost ou testar alvo alternativo (retorno em vez de preço bruto)
+- EDA, modelagem e protótipo multi-ativos: concluído em 24/08 (adiantado).
+- Ainda falta: localizar o template oficial da FAM (Protótipo) no Canvas; redigir título provisório,
+  problema de pesquisa, objetivo geral/específicos e o texto do TCC nesse template; linkar o
+  repositório Git local ao GitHub (usuário precisa rodar `gh auth login` interativamente).
 - Construir modelo/protótipo + redigir texto: até 14/10
 - Checkpoint: 16/10 | AO1: 19/10 | Correções: até 31/10 | AO2: 02/11

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planejador de investimento multi-ativos — Protótipo</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f6f7f9;
+    --text: #1c1f26;
+    --text-muted: #5b6270;
+    --border: #e2e5ea;
+    --accent: #1f6feb;
+    --accent-bg: #eaf2ff;
+    --warn: #9a6700;
+    --warn-bg: #fff6e0;
+    --ok: #1a7f37;
+    --ok-bg: #e6f6ea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-alt);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .layout { display: flex; max-width: 1200px; margin: 0 auto; min-height: 100vh; }
+  aside {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    padding: 32px 24px;
+  }
+  aside h2 { font-size: 15px; margin: 0 0 20px; }
+  .field { margin-bottom: 20px; }
+  .field label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+  .field select, .field input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--bg);
+    color: var(--text);
+  }
+  main { flex: 1; padding: 32px 36px 80px; min-width: 0; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-muted); font-size: 14.5px; margin: 0 0 24px; }
+
+  .callout {
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: 14px;
+    margin-bottom: 26px;
+    background: var(--warn-bg);
+    border: 1px solid #f0dca3;
+  }
+  .callout strong.label {
+    display: block;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    color: var(--warn);
+  }
+
+  section { margin-bottom: 30px; }
+  section h2 { font-size: 17px; margin: 0 0 4px; }
+  section .hint { font-size: 13px; color: var(--text-muted); margin: 0 0 12px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  th, td { text-align: right; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; background: var(--bg-alt); }
+  tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .card .k { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .card .v { font-size: 22px; font-weight: 700; }
+  .card .d { font-size: 12px; color: var(--ok); margin-top: 4px; }
+
+  #chart-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; margin-top: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  .empty { color: var(--text-muted); font-size: 14px; padding: 20px; text-align: center; }
+
+  @media (max-width: 800px) {
+    .layout { flex-direction: column; }
+    aside { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    .cards { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <h2>Seu perfil</h2>
+    <div class="field">
+      <label for="faixaRisco">Faixa de risco</label>
+      <select id="faixaRisco">
+        <option value="Baixo">Baixo (Renda Fixa)</option>
+        <option value="Intermediário">Intermediário (FIIs)</option>
+        <option value="Alto">Alto (ETF de ações)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="budget">Orçamento mensal (R$)</label>
+      <input type="number" id="budget" value="500" min="50" step="50">
+    </div>
+    <div class="field">
+      <label for="horizonte">Até quando pretende investir?</label>
+      <input type="date" id="horizonte" value="2027-08-24" min="2026-09-24">
+    </div>
+  </aside>
+
+  <main>
+    <h1>Planejador de investimento multi-ativos</h1>
+    <p class="subtitle">Protótipo de TCC — recomendação entre 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em dados históricos até <span id="dataRef"></span>. Versão standalone, sem necessidade de servidor.</p>
+
+    <div class="callout">
+      <strong class="label">Limitação importante</strong>
+      A modelagem deste TCC (Prophet e XGBoost, ver <code>resultados_modelos.csv</code>) mostrou que a
+      previsão de preço de curto prazo não supera de forma consistente um baseline de persistência
+      ingênua para os ativos de mercado líquido (FIIs, ETF de ações) — o preço se comporta perto de um
+      passeio aleatório no dia a dia. A exceção é o <strong>Tesouro Selic</strong>, quase determinístico,
+      onde o modelo bate a persistência com folga. Por isso a projeção de renda usa o dividend yield
+      histórico (só FIIs) e a tendência de preço é tratada como especulativa para FII/ETF. O gráfico de
+      evolução mostra uma faixa de incerteza (Monte Carlo) baseada na volatilidade histórica real de
+      cada ativo — não uma linha reta de juros compostos. Protótipo acadêmico, não recomendação de
+      investimento real.
+    </div>
+
+    <section>
+      <h2>Perfil de risco dos ativos (3 classes: Renda Fixa, FII, ETF de ações)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Ticker</th><th>Classe</th><th>Volatilidade anualizada (%)</th><th>Volatilidade mensal (%)</th><th>DY médio mensal (%)</th><th>Faixa de risco</th></tr>
+          </thead>
+          <tbody id="tabelaPerfis"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 id="tituloRecomendacao"></h2>
+      <div class="cards" id="cards"></div>
+      <div class="table-wrap">
+        <table id="tabelaRecomendacao"></table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Evolução do valor acumulado (faixa de incerteza via Monte Carlo)</h2>
+      <p class="hint">Área sombreada = faixa entre o percentil 10 e o percentil 90 de 500 simulações, usando a volatilidade mensal histórica real de cada ativo. Linha sólida = mediana.</p>
+      <div id="chart-wrap">
+        <svg id="chart" width="100%" height="380" viewBox="0 0 900 380" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend" id="legend"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const DATA_REFERENCIA = new Date('2026-08-24T00:00:00');
+const FUNDOS = {
+  KNCR11: { classeAtivo: 'FII', volatilidadeAnualizada: 9.1795, volatilidadeMensal: 2.6499, dyMedioMensal: 1.0818, faixaRisco: 'Intermediário', cagrMensal: 0.002664, ultimoFechamento: 106.98 },
+  HGCR11: { classeAtivo: 'FII', volatilidadeAnualizada: 12.0531, volatilidadeMensal: 3.4794, dyMedioMensal: 1.0017, faixaRisco: 'Intermediário', cagrMensal: -0.000227, ultimoFechamento: 92.09 },
+  MXRF11: { classeAtivo: 'FII', volatilidadeAnualizada: 10.2157, volatilidadeMensal: 2.9490, dyMedioMensal: 0.9993, faixaRisco: 'Intermediário', cagrMensal: -0.002855, ultimoFechamento: 9.20 },
+  BOVA11: { classeAtivo: 'ETF_ACOES', volatilidadeAnualizada: 15.8773, volatilidadeMensal: 4.5834, dyMedioMensal: null, faixaRisco: 'Alto', cagrMensal: 0.018898, ultimoFechamento: 169.01 },
+  TESOURO_SELIC_2029: { classeAtivo: 'Renda Fixa', volatilidadeAnualizada: 0.1486, volatilidadeMensal: 0.0429, dyMedioMensal: null, faixaRisco: 'Baixo', cagrMensal: 0.011676, ultimoFechamento: 19692.97 },
+  TESOURO_IPCA_2035: { classeAtivo: 'Renda Fixa', volatilidadeAnualizada: 10.9557, volatilidadeMensal: 3.1626, dyMedioMensal: null, faixaRisco: 'Baixo', cagrMensal: 0.007469, ultimoFechamento: 2445.00 },
+};
+const CORES = {
+  KNCR11: '#1f6feb', HGCR11: '#e8590c', MXRF11: '#1a7f37',
+  BOVA11: '#9c36b5', TESOURO_SELIC_2029: '#0ca678', TESOURO_IPCA_2035: '#c92a2a',
+};
+
+function fmtPct(v) { return v === null || v === undefined ? '—' : v.toFixed(2) + '%'; }
+function fmtRS(v) { return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function mesesEntre(dataInicio, dataHorizonte) {
+  const dias = (dataHorizonte - dataInicio) / (1000 * 60 * 60 * 24);
+  if (dias <= 0) return null;
+  return dias / 30.44;
+}
+
+function projetarRetorno(ticker, meses) {
+  const f = FUNDOS[ticker];
+  const retornoRenda = f.classeAtivo === 'FII' ? (Math.pow(1 + f.dyMedioMensal / 100, meses) - 1) * 100 : 0;
+  const retornoTendencia = (Math.pow(1 + f.cagrMensal, meses) - 1) * 100;
+  return { retornoRenda, retornoTendencia, retornoTotal: retornoRenda + retornoTendencia };
+}
+
+function simularAportes(budget, meses, retornoTotalPct) {
+  if (budget <= 0 || meses <= 0) return 0;
+  const nMeses = Math.round(meses);
+  const taxaMensal = Math.pow(1 + retornoTotalPct / 100, 1 / meses) - 1;
+  if (Math.abs(taxaMensal) < 1e-9) return budget * nMeses;
+  return budget * ((Math.pow(1 + taxaMensal, nMeses) - 1) / taxaMensal);
+}
+
+// PRNG determinístico (mulberry32) + amostra normal (Box-Muller) para a
+// simulação de Monte Carlo — sem dependências externas.
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function amostraNormal(rng) {
+  const u1 = Math.max(rng(), 1e-12), u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function percentil(sortedArr, p) {
+  const idx = (p / 100) * (sortedArr.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sortedArr[lo];
+  return sortedArr[lo] + (sortedArr[hi] - sortedArr[lo]) * (idx - lo);
+}
+
+function simularTrajetorias(budget, meses, retornoTotalPct, volatilidadeMensalPct, nSimulacoes = 500, seed = 42) {
+  const nMeses = Math.round(meses);
+  if (nMeses <= 0) return { p10: [], p50: [], p90: [] };
+  const taxaMedia = meses > 0 ? Math.pow(1 + retornoTotalPct / 100, 1 / meses) - 1 : 0;
+  const rng = mulberry32(seed);
+  const trajetorias = [];
+  for (let s = 0; s < nSimulacoes; s++) {
+    let acumulado = 0;
+    const linha = [];
+    for (let i = 0; i < nMeses; i++) {
+      const ret = taxaMedia + amostraNormal(rng) * (volatilidadeMensalPct / 100);
+      acumulado = acumulado * (1 + ret) + budget;
+      linha.push(acumulado);
+    }
+    trajetorias.push(linha);
+  }
+  const p10 = [], p50 = [], p90 = [];
+  for (let i = 0; i < nMeses; i++) {
+    const valores = trajetorias.map(t => t[i]).sort((a, b) => a - b);
+    p10.push(percentil(valores, 10));
+    p50.push(percentil(valores, 50));
+    p90.push(percentil(valores, 90));
+  }
+  return { p10, p50, p90 };
+}
+
+function recomendar(faixaRisco, budget, dataHorizonte) {
+  const meses = mesesEntre(DATA_REFERENCIA, dataHorizonte);
+  if (meses === null) return null;
+  const elegiveis = Object.entries(FUNDOS).filter(([, f]) => f.faixaRisco === faixaRisco);
+  const linhas = elegiveis.map(([ticker, f]) => {
+    const proj = projetarRetorno(ticker, meses);
+    const valorAcumulado = simularAportes(budget, meses, proj.retornoTotal);
+    return { ticker, ...f, ...proj, valorAcumulado, totalAportado: budget * Math.round(meses) };
+  });
+  linhas.sort((a, b) => b.retornoTotal - a.retornoTotal);
+  return { meses, linhas };
+}
+
+function renderPerfis() {
+  const tbody = document.getElementById('tabelaPerfis');
+  tbody.innerHTML = Object.entries(FUNDOS).map(([ticker, f]) => `
+    <tr>
+      <td>${ticker}</td>
+      <td>${f.classeAtivo}</td>
+      <td>${fmtPct(f.volatilidadeAnualizada)}</td>
+      <td>${fmtPct(f.volatilidadeMensal)}</td>
+      <td>${fmtPct(f.dyMedioMensal)}</td>
+      <td>${f.faixaRisco}</td>
+    </tr>
+  `).join('');
+}
+
+function renderChart(linhas, meses, budget) {
+  const svg = document.getElementById('chart');
+  const legend = document.getElementById('legend');
+  svg.innerHTML = '';
+  legend.innerHTML = '';
+  if (!linhas.length) return;
+
+  const W = 900, H = 380, padL = 65, padR = 20, padT = 20, padB = 40;
+  const nMeses = Math.round(meses);
+  const series = linhas.map(l => ({
+    ticker: l.ticker,
+    ...simularTrajetorias(budget, meses, l.retornoTotal, l.volatilidadeMensal),
+  }));
+  const totalAportado = budget * nMeses;
+  const maxY = Math.max(totalAportado, ...series.flatMap(s => s.p90)) * 1.05;
+  const minY = Math.min(0, ...series.flatMap(s => s.p10));
+
+  const x = i => padL + (i / nMeses) * (W - padL - padR);
+  const y = v => H - padB - ((v - minY) / (maxY - minY)) * (H - padT - padB);
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  svg.appendChild(el('line', { x1: padL, y1: H - padB, x2: W - padR, y2: H - padB, stroke: '#c7cbd1' }));
+  svg.appendChild(el('line', { x1: padL, y1: padT, x2: padL, y2: H - padB, stroke: '#c7cbd1' }));
+
+  for (let i = 0; i <= 4; i++) {
+    const val = minY + ((maxY - minY) / 4) * i;
+    const yy = y(val);
+    svg.appendChild(el('line', { x1: padL, y1: yy, x2: W - padR, y2: yy, stroke: '#eef0f3' }));
+    const t = el('text', { x: padL - 8, y: yy + 4, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'end' });
+    t.textContent = 'R$ ' + Math.round(val).toLocaleString('pt-BR');
+    svg.appendChild(t);
+  }
+
+  const yAportado = y(totalAportado);
+  svg.appendChild(el('line', { x1: padL, y1: yAportado, x2: W - padR, y2: yAportado, stroke: '#1c1f26', 'stroke-dasharray': '4,4', 'stroke-width': 1 }));
+  const labelAportado = el('text', { x: W - padR, y: yAportado - 6, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'end' });
+  labelAportado.textContent = 'Total aportado (sem rendimento)';
+  svg.appendChild(labelAportado);
+
+  const step = Math.max(1, Math.round(nMeses / 10));
+  for (let i = 0; i <= nMeses; i += step) {
+    const t = el('text', { x: x(i), y: H - padB + 18, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'middle' });
+    t.textContent = i;
+    svg.appendChild(t);
+  }
+
+  series.forEach(s => {
+    const cor = CORES[s.ticker] || '#666';
+
+    // faixa p10-p90
+    const pontosFaixa = s.p90.map((v, i) => `${x(i + 1)},${y(v)}`)
+      .concat(s.p10.slice().reverse().map((v, i) => `${x(nMeses - i)},${y(v)}`))
+      .join(' ');
+    svg.appendChild(el('polygon', { points: pontosFaixa, fill: cor, opacity: 0.13, stroke: 'none' }));
+
+    // mediana
+    const pontosMediana = s.p50.map((v, i) => `${x(i + 1)},${y(v)}`).join(' ');
+    svg.appendChild(el('polyline', { points: pontosMediana, fill: 'none', stroke: cor, 'stroke-width': 2.5 }));
+    s.p50.forEach((v, i) => {
+      svg.appendChild(el('circle', { cx: x(i + 1), cy: y(v), r: 2.5, fill: cor }));
+    });
+
+    const item = document.createElement('span');
+    item.innerHTML = `<i style="background:${cor}"></i>${s.ticker}`;
+    legend.appendChild(item);
+  });
+}
+
+function atualizar() {
+  const faixaRisco = document.getElementById('faixaRisco').value;
+  const budget = parseFloat(document.getElementById('budget').value) || 0;
+  const horizonteStr = document.getElementById('horizonte').value;
+  const dataHorizonte = horizonteStr ? new Date(horizonteStr + 'T00:00:00') : null;
+
+  const tituloEl = document.getElementById('tituloRecomendacao');
+  const cardsEl = document.getElementById('cards');
+  const tabelaEl = document.getElementById('tabelaRecomendacao');
+
+  if (!dataHorizonte) {
+    tituloEl.textContent = 'Selecione uma data-horizonte válida.';
+    cardsEl.innerHTML = ''; tabelaEl.innerHTML = '';
+    document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    return;
+  }
+
+  const resultado = recomendar(faixaRisco, budget, dataHorizonte);
+  if (!resultado || resultado.meses === null) {
+    tituloEl.textContent = 'A data-horizonte precisa ser posterior à última data disponível.';
+    cardsEl.innerHTML = ''; tabelaEl.innerHTML = '';
+    document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    return;
+  }
+
+  const { meses, linhas } = resultado;
+  tituloEl.textContent = `Recomendação para faixa de risco '${faixaRisco}' (${meses.toFixed(1)} meses de horizonte)`;
+
+  if (!linhas.length) {
+    cardsEl.innerHTML = '<div class="empty">Nenhum ativo elegível nessa faixa de risco.</div>';
+    tabelaEl.innerHTML = '';
+    document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    return;
+  }
+
+  const melhor = linhas[0];
+  const rendimento = melhor.valorAcumulado - melhor.totalAportado;
+  cardsEl.innerHTML = `
+    <div class="card"><div class="k">Ativo recomendado</div><div class="v">${melhor.ticker}</div></div>
+    <div class="card"><div class="k">Retorno total estimado</div><div class="v">${fmtPct(melhor.retornoTotal)}</div></div>
+    <div class="card"><div class="k">Valor acumulado estimado</div><div class="v">${fmtRS(melhor.valorAcumulado)}</div><div class="d">+${fmtRS(rendimento)} de rendimento</div></div>
+  `;
+
+  tabelaEl.innerHTML = `
+    <thead>
+      <tr>
+        <th>Ticker</th><th>Classe</th><th>Volatilidade anualizada (%)</th>
+        <th>Retorno de renda (%)</th><th>Tendência de preço (%, especulativo)</th>
+        <th>Retorno total (%)</th><th>Valor acumulado (R$)</th><th>Total aportado (R$)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${linhas.map(l => `
+        <tr>
+          <td>${l.ticker}</td>
+          <td>${l.classeAtivo}</td>
+          <td>${fmtPct(l.volatilidadeAnualizada)}</td>
+          <td>${fmtPct(l.retornoRenda)}</td>
+          <td>${fmtPct(l.retornoTendencia)}</td>
+          <td>${fmtPct(l.retornoTotal)}</td>
+          <td>${fmtRS(l.valorAcumulado)}</td>
+          <td>${fmtRS(l.totalAportado)}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+
+  renderChart(linhas, meses, budget);
+}
+
+document.getElementById('dataRef').textContent = DATA_REFERENCIA.toLocaleDateString('pt-BR');
+renderPerfis();
+['faixaRisco', 'budget', 'horizonte'].forEach(id => {
+  document.getElementById(id).addEventListener('input', atualizar);
+});
+atualizar();
+</script>
+</body>
+</html>

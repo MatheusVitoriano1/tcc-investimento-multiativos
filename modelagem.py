@@ -1,20 +1,22 @@
 """
-Modelagem — Previsão de preços de FIIs brasileiros
-====================================================
+Modelagem — Previsão de preços em múltiplas classes de ativos
+====================================================================
 
-Compara quatro abordagens por FII (KNCR11, HGCR11, MXRF11), já que cada fundo
-tem dinâmica de preço própria:
+Compara quatro abordagens por ativo (3 FIIs de papel, 1 ETF de ações — BOVA11 —
+e 2 títulos do Tesouro Direto), já que cada um tem dinâmica de preço própria:
   - Persistência (ingênuo): prevê que o preço de amanhã será igual ao de hoje
     (equivale a prever 0% de variação). Serve de piso de comparação.
   - Prophet: baseline de série temporal, treinado só em (data, fechamento).
   - XGBoost (preço): usa as features engenheiradas em eda.py para prever o
-    preço bruto de D+1 (target_fechamento_t1).
+    preço bruto de D+1 (target_fechamento_t1). O conjunto de features varia
+    por classe de ativo (ver FEATURES_POR_CLASSE) — FII usa DY%/P-VP, ETF usa
+    volume negociado, Renda Fixa usa a taxa do título.
   - XGBoost (retorno): mesmas features, mas o alvo é a variação % de D para
     D+1 (target_retorno_pct_t1) em vez do preço bruto. Em preço bruto, "prever
-    o mesmo valor de hoje" já é quase ótimo (FIIs de papel variam pouco por
-    dia), o que favorece artificialmente a persistência ingênua; em retorno,
-    a previsão trivial (0%) não tem essa vantagem embutida — testa melhor se
-    há sinal real além do "sem variação". Preço reconstruído via
+    o mesmo valor de hoje" já é quase ótimo para ativos de baixa volatilidade
+    diária, o que favorece artificialmente a persistência ingênua; em
+    retorno, a previsão trivial (0%) não tem essa vantagem embutida — testa
+    melhor se há sinal real além do "sem variação". Preço reconstruído via
     fechamento_hoje * (1 + retorno_previsto) para ficar comparável aos demais.
 
 Todos os modelos são avaliados nas mesmas datas-alvo (D+1) do conjunto de
@@ -50,13 +52,23 @@ GRAFICOS_DIR.mkdir(exist_ok=True)
 # Features conhecidas no dia D usadas para prever o fechamento de D+1.
 # "fechamento" (preço do próprio dia D) é uma feature legítima aqui, pois o
 # alvo é o dia seguinte — ver comentário em eda.py:criar_features.
-FEATURES = [
+# Cada classe de ativo tem colunas próprias além das comuns a todos:
+#   FII        -> indicadores da CVM (DY%, P/VP, valor patrimonial) + volume B3
+#   ETF_ACOES  -> só volume/negócios da B3 (não tem indicador de fundo)
+#   Renda Fixa -> taxa do título (não tem volume negociado, é emissão direta)
+FEATURES_COMUNS = [
     "fechamento", "fechamento_lag1", "fechamento_lag5", "fechamento_lag20",
-    "media_movel_5d", "media_movel_20d", "retorno_diario", "p_vp",
-    "dy_mensal_pct", "Percentual_Rentabilidade_Efetiva_Mes",
-    "Percentual_Amortizacao_Cotas_Mes", "Valor_Patrimonial_Cotas",
-    "volume_financeiro", "qtd_titulos_negociados",
+    "media_movel_5d", "media_movel_20d", "retorno_diario",
 ]
+FEATURES_POR_CLASSE = {
+    "FII": FEATURES_COMUNS + [
+        "p_vp", "dy_mensal_pct", "Percentual_Rentabilidade_Efetiva_Mes",
+        "Percentual_Amortizacao_Cotas_Mes", "Valor_Patrimonial_Cotas",
+        "volume_financeiro", "qtd_titulos_negociados",
+    ],
+    "ETF_ACOES": FEATURES_COMUNS + ["volume_financeiro", "qtd_titulos_negociados"],
+    "Renda Fixa": FEATURES_COMUNS + ["taxa"],
+}
 TARGET = "target_fechamento_t1"
 TARGET_RETORNO = "target_retorno_pct_t1"  # variação % de D para D+1 — ver eda.py:criar_features
 PROPORCAO_TESTE = 0.2
@@ -67,11 +79,14 @@ def carregar_dataset() -> pd.DataFrame:
     return df.sort_values(["ticker", "data"])
 
 
-def preparar_ticker(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
-    """Filtra o ticker e remove linhas sem features/alvo (bordas dos lags/shift)."""
+def preparar_ticker(df: pd.DataFrame, ticker: str) -> tuple[pd.DataFrame, list[str]]:
+    """Filtra o ticker, escolhe o conjunto de features da sua classe de ativo e
+    remove linhas sem features/alvo (bordas dos lags/shift)."""
     g = df[df["ticker"] == ticker].sort_values("data").copy()
-    g = g.dropna(subset=FEATURES + [TARGET, TARGET_RETORNO])
-    return g.reset_index(drop=True)
+    classe = g["classe_ativo"].iloc[0]
+    features = FEATURES_POR_CLASSE[classe]
+    g = g.dropna(subset=features + [TARGET, TARGET_RETORNO])
+    return g.reset_index(drop=True), features
 
 
 def dividir_treino_teste(g: pd.DataFrame):
@@ -100,17 +115,17 @@ def prever_persistencia_naive(teste: pd.DataFrame) -> np.ndarray:
     return teste["fechamento"].values
 
 
-def treinar_xgboost(treino: pd.DataFrame, teste: pd.DataFrame) -> np.ndarray:
+def treinar_xgboost(treino: pd.DataFrame, teste: pd.DataFrame, features: list[str]) -> np.ndarray:
     """XGBoost com alvo em preço bruto (target_fechamento_t1)."""
     modelo = XGBRegressor(
         n_estimators=200, max_depth=3, learning_rate=0.05,
         subsample=0.8, colsample_bytree=0.8, random_state=42,
     )
-    modelo.fit(treino[FEATURES], treino[TARGET])
-    return modelo.predict(teste[FEATURES])
+    modelo.fit(treino[features], treino[TARGET])
+    return modelo.predict(teste[features])
 
 
-def treinar_xgboost_retorno(treino: pd.DataFrame, teste: pd.DataFrame) -> np.ndarray:
+def treinar_xgboost_retorno(treino: pd.DataFrame, teste: pd.DataFrame, features: list[str]) -> np.ndarray:
     """XGBoost com alvo em variação % (target_retorno_pct_t1) em vez de preço bruto.
     Retorna o preço reconstruído (fechamento_hoje * (1 + retorno_previsto)) para ficar
     na mesma escala dos demais modelos e permitir comparação direta nas métricas."""
@@ -118,8 +133,8 @@ def treinar_xgboost_retorno(treino: pd.DataFrame, teste: pd.DataFrame) -> np.nda
         n_estimators=200, max_depth=3, learning_rate=0.05,
         subsample=0.8, colsample_bytree=0.8, random_state=42,
     )
-    modelo.fit(treino[FEATURES], treino[TARGET_RETORNO])
-    retorno_previsto_pct = modelo.predict(teste[FEATURES])
+    modelo.fit(treino[features], treino[TARGET_RETORNO])
+    retorno_previsto_pct = modelo.predict(teste[features])
     return teste["fechamento"].values * (1 + retorno_previsto_pct / 100)
 
 
@@ -167,13 +182,14 @@ def main():
     resultados = []
     previsoes_detalhadas = []
     for ticker in tickers:
-        g = preparar_ticker(df, ticker)
+        g, features = preparar_ticker(df, ticker)
         treino, teste = dividir_treino_teste(g)
-        print(f"\n{ticker}: {len(treino)} linhas de treino, {len(teste)} de teste")
+        classe = g["classe_ativo"].iloc[0]
+        print(f"\n{ticker} ({classe}): {len(treino)} linhas de treino, {len(teste)} de teste")
 
         y_prophet = treinar_prophet(treino, teste)
-        y_xgb = treinar_xgboost(treino, teste)
-        y_xgb_retorno = treinar_xgboost_retorno(treino, teste)
+        y_xgb = treinar_xgboost(treino, teste, features)
+        y_xgb_retorno = treinar_xgboost_retorno(treino, teste, features)
         y_naive = prever_persistencia_naive(teste)
         y_real = teste[TARGET].values
         fechamento_hoje = teste["fechamento"].values
@@ -186,7 +202,7 @@ def main():
         ]
         for modelo_nome, y_previsto in modelos:
             metricas = calcular_metricas(fechamento_hoje, y_real, y_previsto)
-            resultados.append({"ticker": ticker, "modelo": modelo_nome, **metricas})
+            resultados.append({"ticker": ticker, "classe_ativo": classe, "modelo": modelo_nome, **metricas})
             print(
                 f"  {modelo_nome}: RMSE={metricas['RMSE']:.4f}  MAE={metricas['MAE']:.4f}  "
                 f"MAPE={metricas['MAPE']:.2f}%  MAE_retorno={metricas['MAE_retorno_pp']:.4f}pp  "
@@ -195,6 +211,7 @@ def main():
 
             previsoes_detalhadas.append(pd.DataFrame({
                 "ticker": ticker,
+                "classe_ativo": classe,
                 "modelo": modelo_nome,
                 "data_alvo": teste["data"].values + pd.Timedelta(days=1),
                 "fechamento_hoje": fechamento_hoje,
@@ -216,10 +233,12 @@ def main():
     df_previsoes.to_csv(caminho_previsoes, index=False)
     print(f"Previsões detalhadas (com variação % prevista x real) salvas em {caminho_previsoes}")
 
-    # Resumo de dividendos: último DY% e dividendo estimado (R$/cota) informado por ticker.
-    # Ver eda.py:criar_features para a ressalva sobre a estimativa em R$.
+    # Resumo de dividendos: último DY% e dividendo estimado (R$/cota) informado por FII.
+    # Ver eda.py:criar_features para a ressalva sobre a estimativa em R$. Não se aplica
+    # a ETF/Renda Fixa (ficam de fora, pois não têm essas colunas preenchidas).
+    fiis = df[df["classe_ativo"] == "FII"]
     resumo_dy = (
-        df.sort_values("data")
+        fiis.sort_values("data")
         .groupby("ticker")[["data", "dy_mensal_pct", "dividendo_estimado_rs_cota"]]
         .last()
         .rename(columns={"data": "ultima_data_disponivel"})

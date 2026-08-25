@@ -247,8 +247,8 @@
 
   <header class="hero">
     <span class="tag">Checkpoint — TCC</span>
-    <h1>Previsão de preços de FIIs brasileiros</h1>
-    <p class="subtitle">Protótipo: modelagem preditiva (Prophet + XGBoost) e app de planejamento de investimento para KNCR11, HGCR11 e MXRF11.</p>
+    <h1>Previsão de preços e planejamento de investimento multi-ativos</h1>
+    <p class="subtitle">Protótipo: modelagem preditiva (Prophet + XGBoost) e app de planejamento de investimento para 3 FIIs de papel/CRI, 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto.</p>
     <div class="meta-row">
       <span><strong>Autor:</strong> Matheus Vitoriano</span>
       <span><strong>Modalidade:</strong> Protótipo (individual)</span>
@@ -260,13 +260,16 @@
   <section>
     <h2><span class="num">1</span>Objetivo</h2>
     <p>
-      Investigar se é possível prever, com dados públicos e gratuitos, o preço de curto prazo de um
-      grupo pequeno de Fundos de Investimento Imobiliário (FIIs) brasileiros do segmento papel/recebíveis
-      (CRI) — <strong>KNCR11</strong>, <strong>HGCR11</strong> e <strong>MXRF11</strong> — comparando um
-      baseline de série temporal (Prophet) com um modelo de aprendizado de máquina (XGBoost) usando
-      features engenheiradas. A partir dessa análise, o protótipo evoluiu para um app de planejamento de
-      investimento que recomenda alocação entre os fundos conforme o perfil de risco, orçamento mensal e
-      horizonte de investimento do usuário.
+      Investigar se é possível prever, com dados públicos e gratuitos, o preço de curto prazo de ativos
+      financeiros brasileiros de diferentes classes de risco, comparando um baseline de série temporal
+      (Prophet) com um modelo de aprendizado de máquina (XGBoost) usando features engenheiradas. O
+      projeto começou só com 3 Fundos de Investimento Imobiliário do segmento papel/recebíveis —
+      <strong>KNCR11</strong>, <strong>HGCR11</strong> e <strong>MXRF11</strong> — e foi ampliado para
+      incluir um <strong>ETF de ações</strong> (BOVA11, Ibovespa) e dois títulos do
+      <strong>Tesouro Direto</strong> (Selic e IPCA+), dando 3 classes de risco genuinamente diferentes em
+      vez de 3 fundos do mesmo segmento. A partir dessa análise, o protótipo evoluiu para um app de
+      planejamento de investimento que recomenda alocação entre os ativos conforme o perfil de risco,
+      orçamento mensal e horizonte de investimento do usuário.
     </p>
   </section>
 
@@ -274,72 +277,94 @@
     <h2><span class="num">2</span>Metodologia</h2>
     <h3>Fontes de dados (gratuitas, oficiais, sem token)</h3>
     <ul>
-      <li><strong>Cotações diárias</strong> — B3 COTAHIST (série histórica oficial de negociação).</li>
-      <li><strong>Indicadores mensais</strong> (dividend yield, valor patrimonial da cota, patrimônio líquido) — Informe Mensal da CVM, dados abertos.</li>
+      <li><strong>Cotações diárias</strong> — B3 COTAHIST (série histórica oficial de negociação), usada para os 3 FIIs e para o ETF BOVA11.</li>
+      <li><strong>Indicadores mensais de FII</strong> (dividend yield, valor patrimonial da cota, patrimônio líquido) — Informe Mensal da CVM, dados abertos.</li>
+      <li><strong>Tesouro Direto</strong> (preço/PU e taxa diários) — Tesouro Transparente, dados abertos.</li>
     </ul>
     <h3>Pipeline</h3>
     <ol>
-      <li><code>coleta_dados.py</code> — baixa e faz o parsing do COTAHIST e do Informe Mensal CVM.</li>
-      <li><code>eda.py</code> — junta cotação diária com indicadores mensais, cria as features (lags, médias móveis defasadas, retorno diário, P/VP, DY%) e os alvos de previsão.</li>
-      <li><code>modelagem.py</code> — treina e compara, por fundo, quatro abordagens de previsão.</li>
-      <li><code>recomendacao.py</code> + <code>app_streamlit.py</code> — lógica de recomendação e interface do app de planejamento.</li>
+      <li><code>coleta_dados.py</code> — baixa e faz o parsing do COTAHIST (FIIs + ETF), do Informe Mensal CVM e do histórico do Tesouro Direto.</li>
+      <li><code>eda.py</code> — junta as 3 fontes em um único dataset longo (uma linha por ativo/dia), cria as features (lags, médias móveis defasadas, retorno diário, P/VP e DY% só para FII, taxa só para Tesouro) e os alvos de previsão.</li>
+      <li><code>modelagem.py</code> — treina e compara, por ativo, quatro abordagens de previsão, com o conjunto de features ajustado por classe de ativo.</li>
+      <li><code>recomendacao.py</code> + <code>app_streamlit.py</code> / <code>site_prototipo.html</code> — lógica de recomendação (com 3 faixas de risco reais) e duas interfaces: app Streamlit e versão standalone em HTML puro.</li>
     </ol>
   </section>
 
   <section>
     <h2><span class="num">3</span>Status atual</h2>
     <ul class="checklist">
-      <li><span class="status done">Concluído</span> Coleta de dados (cotações B3 + indicadores CVM), 2024–2026, ~96% de cobertura dos dias úteis por fundo.</li>
-      <li><span class="status done">Concluído</span> EDA e engenharia de features, com correção de vazamento de dados (data leakage) nas médias móveis e confirmação da unidade do dividend yield no dicionário oficial da CVM.</li>
-      <li><span class="status done">Concluído</span> Modelagem: baseline de persistência ingênua, Prophet, XGBoost (preço) e XGBoost (retorno), com métricas de erro de preço, erro de retorno e acurácia direcional.</li>
-      <li><span class="status done">Concluído</span> Protótipo do app de planejamento (Streamlit) com perfil de risco, orçamento mensal e horizonte de investimento — testado ponta a ponta no navegador.</li>
-      <li><span class="status progress">Em andamento</span> Configuração do repositório Git/GitHub para versionar o progresso (3 sessões de trabalho por semana até 16/10).</li>
-      <li><span class="status todo">A fazer</span> Redação do texto do TCC (introdução, referencial teórico, metodologia, resultados, conclusão).</li>
+      <li><span class="status done">Concluído</span> Coleta de dados: 3 FIIs + ETF via B3 COTAHIST, indicadores via CVM, 2 títulos do Tesouro Direto via Tesouro Transparente — 2024–2026, ~96% de cobertura dos dias úteis por ativo.</li>
+      <li><span class="status done">Concluído</span> EDA e engenharia de features multi-classe, com correção de vazamento de dados (data leakage) nas médias móveis e confirmação da unidade do dividend yield no dicionário oficial da CVM.</li>
+      <li><span class="status done">Concluído</span> Modelagem: baseline de persistência ingênua, Prophet, XGBoost (preço) e XGBoost (retorno) para os 6 ativos, com métricas de erro de preço, erro de retorno e acurácia direcional.</li>
+      <li><span class="status done">Concluído</span> Protótipo do app de planejamento com 3 faixas de risco reais (Renda Fixa/FII/ETF de ações), orçamento mensal, horizonte de investimento e faixa de incerteza via Monte Carlo — duas versões (Streamlit e HTML standalone), testadas ponta a ponta no navegador.</li>
+      <li><span class="status progress">Em andamento</span> Repositório Git local criado e versionado; falta linkar com o GitHub (autenticação pendente do lado do usuário) e manter os commits das 3 sessões de trabalho semanais até 16/10.</li>
+      <li><span class="status todo">A fazer</span> Redação do texto do TCC no template oficial da FAM para Protótipo (título provisório, problema, objetivos, introdução, fundamentação teórica etc.) — template ainda não localizado no Canvas.</li>
       <li><span class="status todo">A fazer</span> Revisão de hiperparâmetros do XGBoost e validação cruzada temporal (walk-forward), se o tempo permitir.</li>
     </ul>
   </section>
 
   <section>
     <h2><span class="num">4</span>Resultados da modelagem</h2>
-    <p>Erro medido no conjunto de teste (últimos 20% dos dias de cada fundo, split temporal, sem embaralhar). MAE e RMSE em R$; MAE de retorno em pontos percentuais; acurácia direcional = % de vezes que o modelo acertou se o fundo subiria ou cairia.</p>
+    <p>Erro medido no conjunto de teste (últimos 20% dos dias de cada ativo, split temporal, sem embaralhar). MAE e RMSE em R$ (ou pontos de PU para o Tesouro); MAE de retorno em pontos percentuais; acurácia direcional = % de vezes que o modelo acertou se o ativo subiria ou cairia. Linhas destacadas = casos em que o XGBoost (retorno) supera a persistência.</p>
 
     <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Fundo</th><th>Modelo</th><th>RMSE (R$)</th><th>MAE (R$)</th><th>MAPE</th><th>MAE retorno (p.p.)</th><th>Acurácia direcional</th></tr>
+        <tr><th>Ativo</th><th>Classe</th><th>Modelo</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>MAE retorno (p.p.)</th><th>Acurácia direcional</th></tr>
       </thead>
       <tbody>
-        <tr><td>HGCR11</td><td>Persistência (ingênuo)</td><td>0,808</td><td>0,603</td><td>0,64%</td><td>0,636</td><td>2,3%</td></tr>
-        <tr><td>HGCR11</td><td>Prophet</td><td>16,312</td><td>14,968</td><td>15,99%</td><td>15,977</td><td>48,4%</td></tr>
-        <tr><td>HGCR11</td><td>XGBoost (preço)</td><td>0,811</td><td>0,637</td><td>0,67%</td><td>0,672</td><td>52,3%</td></tr>
-        <tr class="highlight"><td>HGCR11</td><td>XGBoost (retorno)</td><td>0,775</td><td>0,615</td><td>0,65%</td><td>0,648</td><td>52,3%</td></tr>
+        <tr><td>BOVA11</td><td>ETF ações</td><td>Persistência (ingênuo)</td><td>2,138</td><td>1,619</td><td>0,92%</td><td>0,917</td><td>0,8%</td></tr>
+        <tr><td>BOVA11</td><td>ETF ações</td><td>Prophet</td><td>53,914</td><td>46,855</td><td>27,29%</td><td>27,271</td><td>45,0%</td></tr>
+        <tr><td>BOVA11</td><td>ETF ações</td><td>XGBoost (preço)</td><td>4,898</td><td>4,109</td><td>2,34%</td><td>2,332</td><td>46,5%</td></tr>
+        <tr><td>BOVA11</td><td>ETF ações</td><td>XGBoost (retorno)</td><td>3,004</td><td>2,514</td><td>1,44%</td><td>1,435</td><td>41,1%</td></tr>
 
-        <tr><td>KNCR11</td><td>Persistência (ingênuo)</td><td>0,572</td><td>0,427</td><td>0,40%</td><td>0,402</td><td>1,6%</td></tr>
-        <tr><td>KNCR11</td><td>Prophet</td><td>4,160</td><td>3,771</td><td>3,54%</td><td>3,543</td><td>57,8%</td></tr>
-        <tr><td>KNCR11</td><td>XGBoost (preço)</td><td>0,772</td><td>0,620</td><td>0,58%</td><td>0,581</td><td>53,1%</td></tr>
-        <tr class="highlight"><td>KNCR11</td><td>XGBoost (retorno)</td><td>0,593</td><td>0,481</td><td>0,45%</td><td>0,452</td><td>53,9%</td></tr>
+        <tr><td>HGCR11</td><td>FII</td><td>Persistência (ingênuo)</td><td>0,805</td><td>0,600</td><td>0,63%</td><td>0,632</td><td>2,3%</td></tr>
+        <tr><td>HGCR11</td><td>FII</td><td>Prophet</td><td>16,385</td><td>15,038</td><td>16,07%</td><td>16,055</td><td>48,8%</td></tr>
+        <tr><td>HGCR11</td><td>FII</td><td>XGBoost (preço)</td><td>0,808</td><td>0,634</td><td>0,67%</td><td>0,670</td><td>52,7%</td></tr>
+        <tr><td>HGCR11</td><td>FII</td><td>XGBoost (retorno)</td><td>0,774</td><td>0,614</td><td>0,65%</td><td>0,648</td><td>52,7%</td></tr>
 
-        <tr><td>MXRF11</td><td>Persistência (ingênuo)</td><td>0,063</td><td>0,045</td><td>0,47%</td><td>0,466</td><td>10,2%</td></tr>
-        <tr><td>MXRF11</td><td>Prophet</td><td>0,490</td><td>0,368</td><td>3,84%</td><td>3,833</td><td>38,3%</td></tr>
-        <tr><td>MXRF11</td><td>XGBoost (preço)</td><td>0,106</td><td>0,088</td><td>0,90%</td><td>0,903</td><td>46,1%</td></tr>
-        <tr class="highlight"><td>MXRF11</td><td>XGBoost (retorno)</td><td>0,068</td><td>0,049</td><td>0,50%</td><td>0,500</td><td>51,6%</td></tr>
+        <tr><td>KNCR11</td><td>FII</td><td>Persistência (ingênuo)</td><td>0,571</td><td>0,427</td><td>0,40%</td><td>0,401</td><td>1,6%</td></tr>
+        <tr><td>KNCR11</td><td>FII</td><td>Prophet</td><td>4,179</td><td>3,789</td><td>3,56%</td><td>3,560</td><td>58,1%</td></tr>
+        <tr><td>KNCR11</td><td>FII</td><td>XGBoost (preço)</td><td>0,769</td><td>0,617</td><td>0,58%</td><td>0,578</td><td>53,5%</td></tr>
+        <tr><td>KNCR11</td><td>FII</td><td>XGBoost (retorno)</td><td>0,591</td><td>0,480</td><td>0,45%</td><td>0,451</td><td>53,5%</td></tr>
+
+        <tr><td>MXRF11</td><td>FII</td><td>Persistência (ingênuo)</td><td>0,063</td><td>0,046</td><td>0,47%</td><td>0,467</td><td>10,1%</td></tr>
+        <tr><td>MXRF11</td><td>FII</td><td>Prophet</td><td>0,499</td><td>0,375</td><td>3,91%</td><td>3,905</td><td>38,0%</td></tr>
+        <tr><td>MXRF11</td><td>FII</td><td>XGBoost (preço)</td><td>0,105</td><td>0,088</td><td>0,90%</td><td>0,899</td><td>46,5%</td></tr>
+        <tr><td>MXRF11</td><td>FII</td><td>XGBoost (retorno)</td><td>0,068</td><td>0,049</td><td>0,50%</td><td>0,499</td><td>51,9%</td></tr>
+
+        <tr><td>TESOURO_IPCA_2035</td><td>Renda Fixa</td><td>Persistência (ingênuo)</td><td>15,696</td><td>11,923</td><td>0,50%</td><td>0,499</td><td>0,0%</td></tr>
+        <tr><td>TESOURO_IPCA_2035</td><td>Renda Fixa</td><td>Prophet</td><td>268,439</td><td>229,206</td><td>9,57%</td><td>9,567</td><td>49,2%</td></tr>
+        <tr><td>TESOURO_IPCA_2035</td><td>Renda Fixa</td><td>XGBoost (preço)</td><td>52,427</td><td>43,522</td><td>1,80%</td><td>1,801</td><td>55,5%</td></tr>
+        <tr><td>TESOURO_IPCA_2035</td><td>Renda Fixa</td><td>XGBoost (retorno)</td><td>20,673</td><td>16,804</td><td>0,70%</td><td>0,702</td><td>59,4%</td></tr>
+
+        <tr><td>TESOURO_SELIC_2029</td><td>Renda Fixa</td><td>Persistência (ingênuo)</td><td>10,371</td><td>10,364</td><td>0,05%</td><td>0,055</td><td>0,0%</td></tr>
+        <tr><td>TESOURO_SELIC_2029</td><td>Renda Fixa</td><td>Prophet</td><td>31,510</td><td>25,583</td><td>0,13%</td><td>0,133</td><td>41,4%</td></tr>
+        <tr><td>TESOURO_SELIC_2029</td><td>Renda Fixa</td><td>XGBoost (preço)</td><td>779,211</td><td>679,874</td><td>3,53%</td><td>4,028</td><td>0,0%</td></tr>
+        <tr class="highlight"><td>TESOURO_SELIC_2029</td><td>Renda Fixa</td><td>XGBoost (retorno)</td><td>0,458</td><td>0,284</td><td>0,00%</td><td>0,0015</td><td>100,0%</td></tr>
       </tbody>
     </table>
     </div>
 
     <div class="callout finding">
       <strong class="label">Achado principal</strong>
-      O XGBoost supera o Prophet com folga em todos os fundos, e treinar o alvo em retorno (%) em vez de
-      preço bruto melhora consistentemente o XGBoost (linhas destacadas). Ainda assim, <strong>nenhum
-      modelo supera o baseline de persistência ingênua</strong> (prever que o preço de amanhã será igual
-      ao de hoje) — coerente com a hipótese de mercado eficiente para FIIs de papel/CRI de baixa
-      volatilidade diária, onde o preço de hoje já concentra quase toda a informação relevante para o de
-      amanhã. Este é o resultado central a ser discutido na análise do TCC.
+      Para os ativos de mercado líquido (FIIs e o ETF BOVA11), o padrão da primeira rodada se confirma:
+      o XGBoost supera o Prophet com folga e treinar o alvo em retorno (%) melhora o XGBoost, mas
+      <strong>nenhum modelo supera a persistência ingênua</strong> — coerente com mercado eficiente. A
+      novidade é o <strong>Tesouro Selic</strong>: é o único ativo em que o XGBoost (retorno) bate a
+      persistência de forma esmagadora (MAE de retorno cai de 0,055 p.p. para 0,0015 p.p.; acurácia
+      direcional de 100%). Isso faz sentido — o preço do Tesouro Selic é quase determinístico (segue de
+      perto a taxa Selic), então há sinal real a ser aprendido. Também vale registrar uma falha
+      instrutiva: o <strong>XGBoost (preço bruto) foi péssimo no Tesouro Selic</strong> (MAE de 680,
+      pior que a persistência) porque árvores de decisão não extrapolam além da faixa de preços vista no
+      treino — como o PU do título só cresce ao longo do tempo, o teste cai fora do intervalo de
+      treinamento. Esse é justamente o argumento técnico por trás de preferir o alvo em retorno (%) ao
+      preço bruto, e será discutido na metodologia do TCC.
     </div>
 
     <h3>Gráficos gerados</h3>
     <div class="graf-grid">
-      <img src="dados/graficos/precos_historico.png" alt="Histórico de preços dos 3 fundos">
+      <img src="dados/graficos/precos_historico.png" alt="Histórico de preços dos 6 ativos (base 100)">
       <img src="dados/graficos/correlacao_features.png" alt="Mapa de correlação entre features">
     </div>
   </section>
@@ -347,23 +372,29 @@
   <section>
     <h2><span class="num">5</span>Protótipo: app de planejamento de investimento</h2>
     <p>
-      Interface em Streamlit onde o usuário escolhe uma faixa de risco (Baixo/Intermediário — classificada
-      pela volatilidade anualizada relativa entre os 3 fundos), um orçamento mensal e uma data-horizonte
-      de investimento. O app projeta o retorno acumulado esperado (dividend yield histórico composto +
-      tendência de preço, esta última tratada como especulativa dado o achado da seção anterior) e simula
-      o valor acumulado aportando o orçamento mês a mês.
+      O usuário escolhe uma faixa de risco (Baixo = Renda Fixa, Intermediário = FII, Alto = ETF de ações —
+      agora baseada em classes de ativo genuinamente diferentes, não mais um ranking relativo dentro de um
+      único segmento), um orçamento mensal e uma data-horizonte de investimento. O app projeta o retorno
+      acumulado esperado (dividend yield histórico composto, só para FII, + tendência de preço, rotulada
+      como especulativa para FII/ETF) e mostra a evolução do valor acumulado com uma
+      <strong>faixa de incerteza via simulação de Monte Carlo</strong> (percentis 10-90, usando a
+      volatilidade mensal histórica real de cada ativo) — resolve o problema da versão anterior, cujo
+      gráfico era uma linha reta de juros compostos que não refletia a variação real do mercado. Existem
+      duas versões, com a mesma lógica: <code>app_streamlit.py</code> (interativo, precisa do Python) e
+      <code>site_prototipo.html</code> (standalone, abre direto no navegador sem servidor — útil para
+      anexar como evidência e demonstrar na banca).
     </p>
     <div class="shots">
       <figure>
-        <img src="dados/screenshots_app/app_perfil_baixo.png" alt="App — perfil de risco Baixo">
-        <figcaption>Perfil de risco "Baixo" — recomendação KNCR11</figcaption>
+        <img src="dados/screenshots_app/app_perfil_baixo.png" alt="App — perfil de risco Baixo (Renda Fixa)">
+        <figcaption>Perfil "Baixo" (Renda Fixa) — Tesouro Selic recomendado, banda de incerteza quase invisível</figcaption>
       </figure>
       <figure>
-        <img src="dados/screenshots_app/app_perfil_intermediario.png" alt="App — perfil de risco Intermediário">
-        <figcaption>Perfil de risco "Intermediário" — HGCR11 e MXRF11</figcaption>
+        <img src="dados/screenshots_app/app_perfil_alto.png" alt="App — perfil de risco Alto (ETF de ações)">
+        <figcaption>Perfil "Alto" (ETF de ações) — BOVA11, banda de incerteza bem mais larga</figcaption>
       </figure>
     </div>
-    <p style="margin-top:14px;">Para rodar localmente: <code>.\venv\Scripts\python.exe -m streamlit run app_streamlit.py</code></p>
+    <p style="margin-top:14px;">Para rodar localmente: <code>.\venv\Scripts\python.exe -m streamlit run app_streamlit.py</code>, ou abrir <code>site_prototipo.html</code> direto no navegador.</p>
   </section>
 
   <section>
@@ -372,17 +403,19 @@
       <strong class="label">Dividendos em R$</strong>
       A CVM não disponibiliza gratuitamente o valor do dividendo pago em R$/cota, só o percentual (DY%).
       O valor em R$ usado no app é uma <strong>estimativa</strong> (DY% × valor patrimonial da cota),
-      confirmada como aproximação no dicionário de dados oficial da CVM.
-    </div>
-    <div class="callout limitation">
-      <strong class="label">Amostra de fundos</strong>
-      Os 3 FIIs são todos do mesmo segmento (papel/CRI), então a classificação de "perfil de risco" no
-      app é relativa entre eles, não uma escala absoluta de risco do mercado de FIIs como um todo.
+      confirmada como aproximação no dicionário de dados oficial da CVM. Renda Fixa e ETF não têm um
+      componente de "renda" separado nos dados coletados (o retorno já vem embutido na variação de preço).
     </div>
     <div class="callout limitation">
       <strong class="label">Horizonte de teste</strong>
       Split temporal único (80/20), sem validação cruzada de séries temporais (walk-forward) — item
       listado como possível melhoria antes do AO1, se o prazo permitir.
+    </div>
+    <div class="callout limitation">
+      <strong class="label">Amostra por classe</strong>
+      Só 1 ativo representa a classe "Alto risco" (BOVA11) e a classe "Renda Fixa" tem apenas 2 títulos —
+      suficiente para demonstrar o protótipo e a diferença de risco entre classes, mas uma amostra maior
+      por classe fortaleceria a generalização das conclusões.
     </div>
   </section>
 
@@ -390,8 +423,8 @@
     <h2><span class="num">7</span>Cronograma</h2>
     <ul class="timeline">
       <li class="done"><span class="date">Até 05/10</span> EDA e pré-processamento — concluído, adiantado.</li>
-      <li class="done"><span class="date">24/08</span> Modelagem (Prophet, XGBoost preço/retorno) e protótipo do app — concluído nesta rodada.</li>
-      <li><span class="date">Até 14/10</span> Redigir o texto do TCC e refinar o protótipo (3 sessões de trabalho por semana).</li>
+      <li class="done"><span class="date">24/08</span> Modelagem (Prophet, XGBoost preço/retorno), protótipo do app e expansão para 3 classes de ativos (Renda Fixa + FII + ETF de ações) com simulação de Monte Carlo — concluído nesta rodada.</li>
+      <li><span class="date">Até 14/10</span> Localizar o template oficial da FAM, redigir o texto do TCC e refinar o protótipo (3 sessões de trabalho por semana).</li>
       <li><span class="date">16/10</span> Checkpoint.</li>
       <li><span class="date">19/10</span> AO1.</li>
       <li><span class="date">Até 31/10</span> Correções.</li>

@@ -1,70 +1,75 @@
 """
-Recomendação de investimento — Previsão de preços de FIIs brasileiros
+Recomendação de investimento — múltiplas classes de ativos
 ========================================================================
 
-Lógica pura de recomendação (sem interface), usada pelo app_streamlit.py.
-Recebe o dataset final (eda.py) e devolve:
-  1. Um perfil de risco por FII, calculado por métricas históricas (não há
-     fundos de segmentos diferentes no projeto — os 3 FIIs são todos de
-     papel/CRI — então o risco é relativo entre eles, não uma escala
-     absoluta de mercado).
+Lógica pura de recomendação (sem interface), usada pelo app_streamlit.py e
+replicada em JavaScript em site_prototipo.html. Recebe o dataset final (eda.py)
+e devolve:
+  1. Um perfil de risco por ativo — agora com 3 classes genuinamente diferentes
+     (Renda Fixa/Tesouro Direto, FII de papel, ETF de ações), não mais uma
+     classificação relativa artificial dentro de um único segmento.
   2. Uma projeção de retorno acumulado até uma data-horizonte escolhida.
-  3. Uma simulação de quanto o usuário acumularia aportando um valor mensal.
+  3. Uma simulação de Monte Carlo de quanto o usuário acumularia aportando um
+     valor mensal, usando a volatilidade histórica real do ativo — em vez de
+     uma única linha de juros compostos determinística, que não refletia a
+     variação observada no mercado.
 
 Importante (decorrente dos achados da modelagem em modelagem.py): os modelos
 de preço (Prophet e XGBoost) não superam de forma consistente um baseline de
-persistência ingênua para FIIs de papel de baixa volatilidade — ou seja, não
-há sinal preditivo de preço robusto no horizonte de 1 dia. Por isso, a
-projeção de longo prazo aqui é construída principalmente sobre o dividend
-yield histórico (renda passiva, muito mais estável e previsível para esse
-segmento) e usa a tendência histórica de preço apenas como um componente
-secundário e explicitamente rotulado como especulativo.
+persistência ingênua para os ativos de mercado líquido (FIIs, ETF de ações) —
+ou seja, não há sinal preditivo de preço robusto no horizonte de 1 dia para
+eles. A exceção é o Tesouro Selic, cujo preço é quase determinístico (segue a
+taxa Selic), onde o XGBoost (retorno) bate a persistência com folga. Por isso,
+a projeção de longo prazo é construída principalmente sobre o dividend yield
+histórico (FIIs) e a tendência histórica de preço (todos os ativos, mas
+rotulada como especulativa para FII/ETF e como razoavelmente confiável só para
+o Tesouro Selic).
 """
-
-from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 DIAS_UTEIS_POR_ANO = 252
 
-
-@dataclass
-class PerfilFundo:
-    ticker: str
-    volatilidade_anualizada_pct: float
-    dy_medio_mensal_pct: float
-    dy_desvio_mensal_pct: float
-    faixa_risco: str  # "Baixo" ou "Intermediário", relativo entre os fundos do projeto
+# Classificação de risco por classe de ativo — agora baseada em diversificação
+# real (fonte de dado + natureza do ativo), não mais num ranking relativo
+# dentro de um único segmento (que era o caso quando só havia 3 FIIs de papel).
+FAIXA_RISCO_POR_CLASSE = {
+    "Renda Fixa": "Baixo",
+    "FII": "Intermediário",
+    "ETF_ACOES": "Alto",
+}
 
 
 def calcular_perfis_risco(df: pd.DataFrame) -> pd.DataFrame:
-    """Calcula, por ticker, volatilidade anualizada do preço e estatísticas do DY
-    mensal, e classifica a faixa de risco relativa entre os fundos disponíveis.
-
-    Faixa de risco: ordena os fundos pela volatilidade anualizada; o de menor
-    volatilidade é "Baixo", os demais são "Intermediário". É uma classificação
-    relativa (só faz sentido comparando os fundos deste projeto entre si), não
-    uma escala de risco de mercado absoluta — os 3 FIIs são todos do segmento
-    papel/CRI, então nenhum deles é "alto risco" no universo geral de FIIs.
+    """Calcula, por ticker, volatilidade anualizada e mensal do preço, estatísticas
+    do DY mensal (só para FII) e a faixa de risco pela classe do ativo.
     """
     linhas = []
     for ticker, g in df.groupby("ticker"):
         g = g.sort_values("data").copy()
+        classe = g["classe_ativo"].iloc[0]
         vol_anualizada = g["retorno_diario"].std() * np.sqrt(DIAS_UTEIS_POR_ANO) * 100
+        vol_mensal = vol_anualizada / np.sqrt(12)
 
-        g["ano_mes"] = g["data"].dt.to_period("M")
-        dy_mensal = g.drop_duplicates(subset="ano_mes")["dy_mensal_pct"]
+        if classe == "FII":
+            g["ano_mes"] = g["data"].dt.to_period("M")
+            dy_mensal = g.drop_duplicates(subset="ano_mes")["dy_mensal_pct"]
+            dy_medio, dy_desvio = dy_mensal.mean(), dy_mensal.std()
+        else:
+            dy_medio, dy_desvio = None, None
+
         linhas.append({
             "ticker": ticker,
+            "classe_ativo": classe,
             "volatilidade_anualizada_pct": vol_anualizada,
-            "dy_medio_mensal_pct": dy_mensal.mean(),
-            "dy_desvio_mensal_pct": dy_mensal.std(),
+            "volatilidade_mensal_pct": vol_mensal,
+            "dy_medio_mensal_pct": dy_medio,
+            "dy_desvio_mensal_pct": dy_desvio,
+            "faixa_risco": FAIXA_RISCO_POR_CLASSE[classe],
         })
 
-    perfis = pd.DataFrame(linhas).sort_values("volatilidade_anualizada_pct").reset_index(drop=True)
-    perfis["faixa_risco"] = ["Baixo"] + ["Intermediário"] * (len(perfis) - 1)
-    return perfis
+    return pd.DataFrame(linhas)
 
 
 def meses_entre(data_inicio: pd.Timestamp, data_horizonte: pd.Timestamp) -> float:
@@ -77,25 +82,33 @@ def meses_entre(data_inicio: pd.Timestamp, data_horizonte: pd.Timestamp) -> floa
 
 
 def projetar_retorno_horizonte(df: pd.DataFrame, ticker: str, meses: float) -> dict:
-    """Projeta o retorno acumulado esperado de um fundo até a data-horizonte,
-    combinando dois componentes:
+    """Projeta o retorno acumulado esperado de um ativo até a data-horizonte,
+    combinando até dois componentes:
 
-    - Renda (dividendos): juros compostos sobre o DY médio mensal histórico.
-      É o componente mais confiável para FIIs de papel (renda relativamente
-      estável mês a mês).
+    - Renda (dividendos, só para FII): juros compostos sobre o DY médio mensal
+      histórico. É o componente mais confiável para FIIs de papel (renda
+      relativamente estável mês a mês). Renda Fixa e ETF de ações não têm um
+      componente de renda separado nos dados coletados — o retorno do Tesouro
+      Direto já vem embutido na variação de preço (marcação a mercado).
     - Tendência de preço: CAGR mensal do preço nos últimos 12 meses de dados,
-      composto pelos meses do horizonte. Rotulado como especulativo porque a
-      modelagem (modelagem.py) mostrou que a previsão de preço de curto prazo
-      não supera de forma consistente um baseline de persistência — extrapolar
-      tendência para meses à frente é uma hipótese fraca, não uma previsão
-      validada, e deve ser comunicado como tal na interface.
+      composto pelos meses do horizonte. Para FII e ETF de ações, é
+      especulativo — a modelagem mostrou que a previsão de preço de curto
+      prazo não supera de forma consistente a persistência ingênua nesses
+      ativos, então extrapolar tendência para meses à frente é uma hipótese
+      fraca. Para o Tesouro Selic, a tendência é bem mais confiável, pois o
+      preço segue de perto a taxa Selic (baixíssima volatilidade, ver
+      modelagem.py — é o único ativo em que o XGBoost bateu a persistência).
     """
     g = df[df["ticker"] == ticker].sort_values("data").copy()
-    g["ano_mes"] = g["data"].dt.to_period("M")
+    classe = g["classe_ativo"].iloc[0]
 
-    dy_mensal = g.drop_duplicates(subset="ano_mes")["dy_mensal_pct"]
-    dy_medio = dy_mensal.mean() / 100
-    retorno_renda_pct = ((1 + dy_medio) ** meses - 1) * 100
+    if classe == "FII":
+        g["ano_mes"] = g["data"].dt.to_period("M")
+        dy_mensal = g.drop_duplicates(subset="ano_mes")["dy_mensal_pct"]
+        dy_medio = dy_mensal.mean() / 100
+        retorno_renda_pct = ((1 + dy_medio) ** meses - 1) * 100
+    else:
+        retorno_renda_pct = 0.0
 
     ultimos_12m = g[g["data"] >= g["data"].max() - pd.Timedelta(days=365)]
     preco_inicial, preco_final = ultimos_12m["fechamento"].iloc[0], ultimos_12m["fechamento"].iloc[-1]
@@ -114,7 +127,8 @@ def projetar_retorno_horizonte(df: pd.DataFrame, ticker: str, meses: float) -> d
 def simular_aportes_mensais(budget_mensal: float, meses: float, retorno_total_pct: float) -> float:
     """Valor futuro de aportes mensais fixos, assumindo que o retorno total
     estimado (%) para o horizonte se distribui uniformemente mês a mês
-    (aproximação simples de juros compostos sobre aportes)."""
+    (aproximação simples de juros compostos sobre aportes) — versão
+    determinística, usada para o card de resumo."""
     if budget_mensal <= 0 or meses <= 0:
         return 0.0
     n_meses = int(round(meses))
@@ -124,25 +138,47 @@ def simular_aportes_mensais(budget_mensal: float, meses: float, retorno_total_pc
     return budget_mensal * (((1 + taxa_mensal) ** n_meses - 1) / taxa_mensal)
 
 
-def serie_acumulada_mensal(budget_mensal: float, meses: float, retorno_total_pct: float) -> pd.Series:
-    """Valor acumulado mês a mês (para plotar a evolução), com o mesmo modelo de
-    juros compostos sobre aportes usado em simular_aportes_mensais."""
+def simular_trajetorias_mensais(
+    budget_mensal: float, meses: float, retorno_total_pct: float, volatilidade_mensal_pct: float,
+    n_simulacoes: int = 1000, seed: int = 42,
+) -> dict:
+    """Simulação de Monte Carlo do valor acumulado mês a mês: sorteia retornos
+    mensais aleatórios (normal, média = taxa mensal implícita no retorno total
+    estimado, desvio-padrão = volatilidade mensal histórica do ativo) e devolve
+    os percentis 10/50/90 do valor acumulado em cada mês.
+
+    Substitui a antiga linha única de juros compostos (`serie_acumulada_mensal`),
+    que era puramente determinística e não refletia a variação real de mercado
+    observada nos dados — daí o gráfico parecer "reto demais".
+    """
     n_meses = int(round(meses))
-    taxa_mensal = (1 + retorno_total_pct / 100) ** (1 / meses) - 1 if meses > 0 else 0.0
-    valores = []
-    acumulado = 0.0
-    for _ in range(1, n_meses + 1):
-        acumulado = acumulado * (1 + taxa_mensal) + budget_mensal
-        valores.append(acumulado)
-    return pd.Series(valores, index=range(1, n_meses + 1))
+    if n_meses <= 0 or budget_mensal <= 0:
+        vazio = np.zeros(0)
+        return {"p10": vazio, "p50": vazio, "p90": vazio}
+
+    taxa_mensal_media = (1 + retorno_total_pct / 100) ** (1 / meses) - 1 if meses > 0 else 0.0
+    rng = np.random.default_rng(seed)
+
+    retornos = rng.normal(taxa_mensal_media, volatilidade_mensal_pct / 100, size=(n_simulacoes, n_meses))
+    trajetorias = np.zeros((n_simulacoes, n_meses))
+    acumulado = np.zeros(n_simulacoes)
+    for i in range(n_meses):
+        acumulado = acumulado * (1 + retornos[:, i]) + budget_mensal
+        trajetorias[:, i] = acumulado
+
+    return {
+        "p10": np.percentile(trajetorias, 10, axis=0),
+        "p50": np.percentile(trajetorias, 50, axis=0),
+        "p90": np.percentile(trajetorias, 90, axis=0),
+    }
 
 
 def recomendar(
     df: pd.DataFrame, faixa_risco_escolhida: str, budget_mensal: float, data_horizonte: pd.Timestamp
 ) -> pd.DataFrame:
-    """Monta a tabela de recomendação: para cada fundo compatível com a faixa
+    """Monta a tabela de recomendação: para cada ativo compatível com a faixa
     de risco escolhida, calcula a projeção de retorno até a data-horizonte e o
-    valor acumulado simulado aportando budget_mensal todo mês."""
+    valor acumulado simulado (determinístico) aportando budget_mensal todo mês."""
     data_referencia = df["data"].max()
     meses = meses_entre(data_referencia, data_horizonte)
 
