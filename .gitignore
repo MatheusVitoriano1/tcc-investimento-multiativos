@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+
+# Dados brutos intermediários da CVM (grandes, reproduzíveis via coleta_dados.py --anos ...)
+dados/cvm_raw/
+
+# Logs locais
+*.log

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkpoint — Previsão de preços de FIIs brasileiros</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f6f7f9;
+    --text: #1c1f26;
+    --text-muted: #5b6270;
+    --border: #e2e5ea;
+    --accent: #1f6feb;
+    --accent-bg: #eaf2ff;
+    --ok: #1a7f37;
+    --ok-bg: #e6f6ea;
+    --warn: #9a6700;
+    --warn-bg: #fff6e0;
+    --todo: #6e7681;
+    --todo-bg: #f0f1f3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg-alt);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .page {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 32px 96px;
+  }
+  header.hero {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 36px;
+    margin-bottom: 32px;
+  }
+  header.hero .tag {
+    display: inline-block;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+  }
+  header.hero h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+  }
+  header.hero p.subtitle {
+    margin: 0 0 18px;
+    color: var(--text-muted);
+    font-size: 15.5px;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .meta-row strong { color: var(--text); font-weight: 600; }
+
+  section {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+  }
+  section h2 {
+    font-size: 19px;
+    margin: 0 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  section h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  section h3 {
+    font-size: 15px;
+    margin: 22px 0 10px;
+    color: var(--text);
+  }
+  p { color: var(--text); font-size: 14.5px; }
+  ul, ol { font-size: 14.5px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  code {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 13px;
+    font-family: "Cascadia Code", Consolas, monospace;
+  }
+
+  .checklist { list-style: none; padding: 0; margin: 0; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14.5px;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .status {
+    flex-shrink: 0;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+  .status.done { color: var(--ok); background: var(--ok-bg); }
+  .status.progress { color: var(--warn); background: var(--warn-bg); }
+  .status.todo { color: var(--todo); background: var(--todo-bg); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 12px 0 4px;
+  }
+  th, td {
+    text-align: right;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.02em; }
+  tr.highlight td { background: var(--accent-bg); font-weight: 600; }
+  .table-wrap { overflow-x: auto; }
+
+  .callout {
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: 14px;
+    margin: 14px 0;
+  }
+  .callout.finding { background: var(--accent-bg); border: 1px solid #c9dfff; }
+  .callout.limitation { background: var(--warn-bg); border: 1px solid #f0dca3; }
+  .callout strong.label {
+    display: block;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .callout.finding strong.label { color: var(--accent); }
+  .callout.limitation strong.label { color: var(--warn); }
+
+  .shots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .shots figure { margin: 0; }
+  .shots img {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: block;
+  }
+  .shots figcaption {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+  .graf-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+  }
+  .graf-grid img {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: block;
+  }
+
+  .timeline { list-style: none; padding: 0; margin: 12px 0 0; }
+  .timeline li {
+    position: relative;
+    padding: 4px 0 16px 26px;
+    font-size: 14px;
+    border-left: 2px solid var(--border);
+    margin-left: 6px;
+  }
+  .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .timeline li::before {
+    content: "";
+    position: absolute;
+    left: -7px; top: 6px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 2px solid var(--accent);
+  }
+  .timeline li.done::before { background: var(--accent); }
+  .timeline .date { font-weight: 700; margin-right: 8px; }
+
+  footer {
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    padding-top: 8px;
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 24px 16px 64px; }
+    section { padding: 20px; }
+    .shots, .graf-grid { grid-template-columns: 1fr; }
+    table { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <span class="tag">Checkpoint — TCC</span>
+    <h1>Previsão de preços de FIIs brasileiros</h1>
+    <p class="subtitle">Protótipo: modelagem preditiva (Prophet + XGBoost) e app de planejamento de investimento para KNCR11, HGCR11 e MXRF11.</p>
+    <div class="meta-row">
+      <span><strong>Autor:</strong> Matheus Vitoriano</span>
+      <span><strong>Modalidade:</strong> Protótipo (individual)</span>
+      <span><strong>Prazo do checkpoint:</strong> 16/10</span>
+      <span><strong>Última atualização:</strong> 24/08</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="num">1</span>Objetivo</h2>
+    <p>
+      Investigar se é possível prever, com dados públicos e gratuitos, o preço de curto prazo de um
+      grupo pequeno de Fundos de Investimento Imobiliário (FIIs) brasileiros do segmento papel/recebíveis
+      (CRI) — <strong>KNCR11</strong>, <strong>HGCR11</strong> e <strong>MXRF11</strong> — comparando um
+      baseline de série temporal (Prophet) com um modelo de aprendizado de máquina (XGBoost) usando
+      features engenheiradas. A partir dessa análise, o protótipo evoluiu para um app de planejamento de
+      investimento que recomenda alocação entre os fundos conforme o perfil de risco, orçamento mensal e
+      horizonte de investimento do usuário.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="num">2</span>Metodologia</h2>
+    <h3>Fontes de dados (gratuitas, oficiais, sem token)</h3>
+    <ul>
+      <li><strong>Cotações diárias</strong> — B3 COTAHIST (série histórica oficial de negociação).</li>
+      <li><strong>Indicadores mensais</strong> (dividend yield, valor patrimonial da cota, patrimônio líquido) — Informe Mensal da CVM, dados abertos.</li>
+    </ul>
+    <h3>Pipeline</h3>
+    <ol>
+      <li><code>coleta_dados.py</code> — baixa e faz o parsing do COTAHIST e do Informe Mensal CVM.</li>
+      <li><code>eda.py</code> — junta cotação diária com indicadores mensais, cria as features (lags, médias móveis defasadas, retorno diário, P/VP, DY%) e os alvos de previsão.</li>
+      <li><code>modelagem.py</code> — treina e compara, por fundo, quatro abordagens de previsão.</li>
+      <li><code>recomendacao.py</code> + <code>app_streamlit.py</code> — lógica de recomendação e interface do app de planejamento.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="num">3</span>Status atual</h2>
+    <ul class="checklist">
+      <li><span class="status done">Concluído</span> Coleta de dados (cotações B3 + indicadores CVM), 2024–2026, ~96% de cobertura dos dias úteis por fundo.</li>
+      <li><span class="status done">Concluído</span> EDA e engenharia de features, com correção de vazamento de dados (data leakage) nas médias móveis e confirmação da unidade do dividend yield no dicionário oficial da CVM.</li>
+      <li><span class="status done">Concluído</span> Modelagem: baseline de persistência ingênua, Prophet, XGBoost (preço) e XGBoost (retorno), com métricas de erro de preço, erro de retorno e acurácia direcional.</li>
+      <li><span class="status done">Concluído</span> Protótipo do app de planejamento (Streamlit) com perfil de risco, orçamento mensal e horizonte de investimento — testado ponta a ponta no navegador.</li>
+      <li><span class="status progress">Em andamento</span> Configuração do repositório Git/GitHub para versionar o progresso (3 sessões de trabalho por semana até 16/10).</li>
+      <li><span class="status todo">A fazer</span> Redação do texto do TCC (introdução, referencial teórico, metodologia, resultados, conclusão).</li>
+      <li><span class="status todo">A fazer</span> Revisão de hiperparâmetros do XGBoost e validação cruzada temporal (walk-forward), se o tempo permitir.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">4</span>Resultados da modelagem</h2>
+    <p>Erro medido no conjunto de teste (últimos 20% dos dias de cada fundo, split temporal, sem embaralhar). MAE e RMSE em R$; MAE de retorno em pontos percentuais; acurácia direcional = % de vezes que o modelo acertou se o fundo subiria ou cairia.</p>
+
+    <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Fundo</th><th>Modelo</th><th>RMSE (R$)</th><th>MAE (R$)</th><th>MAPE</th><th>MAE retorno (p.p.)</th><th>Acurácia direcional</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>HGCR11</td><td>Persistência (ingênuo)</td><td>0,808</td><td>0,603</td><td>0,64%</td><td>0,636</td><td>2,3%</td></tr>
+        <tr><td>HGCR11</td><td>Prophet</td><td>16,312</td><td>14,968</td><td>15,99%</td><td>15,977</td><td>48,4%</td></tr>
+        <tr><td>HGCR11</td><td>XGBoost (preço)</td><td>0,811</td><td>0,637</td><td>0,67%</td><td>0,672</td><td>52,3%</td></tr>
+        <tr class="highlight"><td>HGCR11</td><td>XGBoost (retorno)</td><td>0,775</td><td>0,615</td><td>0,65%</td><td>0,648</td><td>52,3%</td></tr>
+
+        <tr><td>KNCR11</td><td>Persistência (ingênuo)</td><td>0,572</td><td>0,427</td><td>0,40%</td><td>0,402</td><td>1,6%</td></tr>
+        <tr><td>KNCR11</td><td>Prophet</td><td>4,160</td><td>3,771</td><td>3,54%</td><td>3,543</td><td>57,8%</td></tr>
+        <tr><td>KNCR11</td><td>XGBoost (preço)</td><td>0,772</td><td>0,620</td><td>0,58%</td><td>0,581</td><td>53,1%</td></tr>
+        <tr class="highlight"><td>KNCR11</td><td>XGBoost (retorno)</td><td>0,593</td><td>0,481</td><td>0,45%</td><td>0,452</td><td>53,9%</td></tr>
+
+        <tr><td>MXRF11</td><td>Persistência (ingênuo)</td><td>0,063</td><td>0,045</td><td>0,47%</td><td>0,466</td><td>10,2%</td></tr>
+        <tr><td>MXRF11</td><td>Prophet</td><td>0,490</td><td>0,368</td><td>3,84%</td><td>3,833</td><td>38,3%</td></tr>
+        <tr><td>MXRF11</td><td>XGBoost (preço)</td><td>0,106</td><td>0,088</td><td>0,90%</td><td>0,903</td><td>46,1%</td></tr>
+        <tr class="highlight"><td>MXRF11</td><td>XGBoost (retorno)</td><td>0,068</td><td>0,049</td><td>0,50%</td><td>0,500</td><td>51,6%</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="callout finding">
+      <strong class="label">Achado principal</strong>
+      O XGBoost supera o Prophet com folga em todos os fundos, e treinar o alvo em retorno (%) em vez de
+      preço bruto melhora consistentemente o XGBoost (linhas destacadas). Ainda assim, <strong>nenhum
+      modelo supera o baseline de persistência ingênua</strong> (prever que o preço de amanhã será igual
+      ao de hoje) — coerente com a hipótese de mercado eficiente para FIIs de papel/CRI de baixa
+      volatilidade diária, onde o preço de hoje já concentra quase toda a informação relevante para o de
+      amanhã. Este é o resultado central a ser discutido na análise do TCC.
+    </div>
+
+    <h3>Gráficos gerados</h3>
+    <div class="graf-grid">
+      <img src="dados/graficos/precos_historico.png" alt="Histórico de preços dos 3 fundos">
+      <img src="dados/graficos/correlacao_features.png" alt="Mapa de correlação entre features">
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">5</span>Protótipo: app de planejamento de investimento</h2>
+    <p>
+      Interface em Streamlit onde o usuário escolhe uma faixa de risco (Baixo/Intermediário — classificada
+      pela volatilidade anualizada relativa entre os 3 fundos), um orçamento mensal e uma data-horizonte
+      de investimento. O app projeta o retorno acumulado esperado (dividend yield histórico composto +
+      tendência de preço, esta última tratada como especulativa dado o achado da seção anterior) e simula
+      o valor acumulado aportando o orçamento mês a mês.
+    </p>
+    <div class="shots">
+      <figure>
+        <img src="dados/screenshots_app/app_perfil_baixo.png" alt="App — perfil de risco Baixo">
+        <figcaption>Perfil de risco "Baixo" — recomendação KNCR11</figcaption>
+      </figure>
+      <figure>
+        <img src="dados/screenshots_app/app_perfil_intermediario.png" alt="App — perfil de risco Intermediário">
+        <figcaption>Perfil de risco "Intermediário" — HGCR11 e MXRF11</figcaption>
+      </figure>
+    </div>
+    <p style="margin-top:14px;">Para rodar localmente: <code>.\venv\Scripts\python.exe -m streamlit run app_streamlit.py</code></p>
+  </section>
+
+  <section>
+    <h2><span class="num">6</span>Limitações conhecidas</h2>
+    <div class="callout limitation">
+      <strong class="label">Dividendos em R$</strong>
+      A CVM não disponibiliza gratuitamente o valor do dividendo pago em R$/cota, só o percentual (DY%).
+      O valor em R$ usado no app é uma <strong>estimativa</strong> (DY% × valor patrimonial da cota),
+      confirmada como aproximação no dicionário de dados oficial da CVM.
+    </div>
+    <div class="callout limitation">
+      <strong class="label">Amostra de fundos</strong>
+      Os 3 FIIs são todos do mesmo segmento (papel/CRI), então a classificação de "perfil de risco" no
+      app é relativa entre eles, não uma escala absoluta de risco do mercado de FIIs como um todo.
+    </div>
+    <div class="callout limitation">
+      <strong class="label">Horizonte de teste</strong>
+      Split temporal único (80/20), sem validação cruzada de séries temporais (walk-forward) — item
+      listado como possível melhoria antes do AO1, se o prazo permitir.
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">7</span>Cronograma</h2>
+    <ul class="timeline">
+      <li class="done"><span class="date">Até 05/10</span> EDA e pré-processamento — concluído, adiantado.</li>
+      <li class="done"><span class="date">24/08</span> Modelagem (Prophet, XGBoost preço/retorno) e protótipo do app — concluído nesta rodada.</li>
+      <li><span class="date">Até 14/10</span> Redigir o texto do TCC e refinar o protótipo (3 sessões de trabalho por semana).</li>
+      <li><span class="date">16/10</span> Checkpoint.</li>
+      <li><span class="date">19/10</span> AO1.</li>
+      <li><span class="date">Até 31/10</span> Correções.</li>
+      <li><span class="date">02/11</span> AO2.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Documento gerado localmente para acompanhamento do TCC — não publicado, apenas para visualização no navegador.
+  </footer>
+
+</div>
+</body>
+</html>
