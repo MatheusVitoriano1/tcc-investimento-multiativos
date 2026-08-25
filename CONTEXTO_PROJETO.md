@@ -273,6 +273,23 @@ dependências externas).
 .\venv\Scripts\python.exe -m streamlit run app_streamlit.py   # ou abrir site_prototipo.html direto
 ```
 
+## Deploy online (24/08, sessão seguinte)
+Repositório GitHub criado (privado, a pedido do usuário): `https://github.com/MatheusVitoriano1/tcc-investimento-multiativos`.
+Achado: GitHub Pages exige repositório público no plano gratuito — como o repo é privado, usamos
+alternativas que aceitam repo privado no free tier:
+- **`requirements.txt` separado em dois arquivos**: o app (`app_streamlit.py` + `recomendacao.py`) só
+  precisa de pandas/numpy/streamlit/plotly (não treina nada em produção, só lê os CSVs já
+  processados) — isolado em `requirements.txt` enxuto para deploy rápido/confiável. As dependências
+  pesadas do pipeline (Prophet, XGBoost, scikit-learn, matplotlib, requests) foram movidas para
+  `requirements-dev.txt`, usado só localmente para coleta/EDA/modelagem.
+- **`site_prototipo.html`** → **Netlify**, deployado a partir do repo privado. URL final (usuário
+  renomeou o site): **https://tccvitoriano.netlify.app**. Arquivo `_redirects` faz a raiz do site
+  apontar direto para `site_prototipo.html`. A proteção de acesso padrão do Netlify (exigia login)
+  foi desativada pelo usuário em Visitor access — confirmado no ar (200 OK, testado com Playwright,
+  interatividade funcionando, sem erros de console, idêntico à versão local).
+- **`app_streamlit.py`** → Streamlit Community Cloud (instruções passadas ao usuário, aguardando ele
+  fazer o login/deploy via navegador — não é algo que dá pra automatizar, exige OAuth interativo).
+
 ## Próximos passos do cronograma
 - EDA, modelagem e protótipo multi-ativos: concluído em 24/08 (adiantado).
 - Ainda falta: localizar o template oficial da FAM (Protótipo) no Canvas; redigir título provisório,
