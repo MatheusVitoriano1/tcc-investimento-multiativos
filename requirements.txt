@@ -1,10 +1,9 @@
+# Dependências do app (app_streamlit.py + recomendacao.py) — usado pelo Streamlit
+# Community Cloud para o deploy. Deliberadamente enxuto (sem Prophet/XGBoost/
+# scikit-learn/matplotlib): o app só lê os CSVs já processados pelo pipeline
+# local, não treina nada em produção. Para rodar o pipeline completo localmente,
+# use requirements-dev.txt.
 pandas==3.0.5
 numpy==2.5.2
-matplotlib==3.11.1
-requests==2.34.2
-prophet==1.4.0
-cmdstanpy==1.3.0
-xgboost==3.4.1
-scikit-learn==1.9.0
 streamlit==1.62.0
 plotly==6.9.0
