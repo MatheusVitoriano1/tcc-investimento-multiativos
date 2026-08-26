@@ -366,8 +366,10 @@ ignora RLS e não pode ir para código público).
 - Sair (logout) funciona, volta para a tela de login.
 - Sem erros de console em nenhuma etapa.
 
-**Status**: login + persistência por usuário está funcional e no ar (falta só publicar essa versão
-atualizada do `site_prototipo.html` no Netlify — próximo passo quando o usuário pedir o deploy).
+**Status**: publicado. Commit `4515c32` enviado ao GitHub, Netlify rebuildou automaticamente a partir
+do repositório, confirmado com Playwright direto em https://tccvitoriano.netlify.app (tela de login
+aparece, login com usuário de teste funciona, sem erros de console). Login + persistência por
+usuário está no ar em produção.
 
 ### Limitação importante herdada da falta de atualização automática de dados
 O usuário perguntou se há verificação diária de atualização — hoje **não há**: os dados de mercado
