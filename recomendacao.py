@@ -173,6 +173,102 @@ def simular_trajetorias_mensais(
     }
 
 
+def retorno_real_mensal(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """Série de retorno mensal REAL (não simulado) de um ativo, calculada a
+    partir dos preços de fechamento efetivamente observados. Para FIIs, soma
+    o DY mensal real ao retorno de preço, já que o retorno total de um FII
+    inclui os proventos distribuídos, não só a variação de preço da cota."""
+    g = df[df["ticker"] == ticker].sort_values("data").copy()
+    classe = g["classe_ativo"].iloc[0]
+    g["ano_mes"] = g["data"].dt.to_period("M")
+    mensal = g.groupby("ano_mes").agg(
+        fechamento=("fechamento", "last"),
+        dy_mensal_pct=("dy_mensal_pct", "last"),
+    ).reset_index()
+    mensal["retorno_preco_pct"] = mensal["fechamento"].pct_change() * 100
+    if classe == "FII":
+        mensal["retorno_total_pct"] = mensal["retorno_preco_pct"] + mensal["dy_mensal_pct"].fillna(0)
+    else:
+        mensal["retorno_total_pct"] = mensal["retorno_preco_pct"]
+    return mensal.dropna(subset=["retorno_total_pct"])[["ano_mes", "retorno_total_pct"]].reset_index(drop=True)
+
+
+def trajetoria_real_acumulada(df: pd.DataFrame, ticker: str, budget_mensal: float, meses: int) -> np.ndarray:
+    """Valor acumulado mês a mês SE o usuário tivesse aportado budget_mensal
+    todo mês nos últimos `meses` meses de dados reais — aplica o retorno
+    mensal total efetivamente observado (preço + DY, quando FII), sem
+    nenhuma simulação ou aleatoriedade."""
+    serie = retorno_real_mensal(df, ticker).tail(meses)
+    acumulado = 0.0
+    trajetoria = []
+    for r in serie["retorno_total_pct"]:
+        acumulado = acumulado * (1 + r / 100) + budget_mensal
+        trajetoria.append(acumulado)
+    return np.array(trajetoria)
+
+
+def serie_prevista_deterministica(budget_mensal: float, meses: int, retorno_total_pct: float) -> np.ndarray:
+    """Valor acumulado mês a mês segundo a projeção determinística do modelo
+    (retorno total estimado distribuído uniformemente pelos meses) — usada
+    como a linha "previsto" ao comparar com a trajetória real."""
+    if meses <= 0 or budget_mensal <= 0:
+        return np.zeros(0)
+    taxa_mensal = (1 + retorno_total_pct / 100) ** (1 / meses) - 1
+    acumulado = 0.0
+    trajetoria = []
+    for _ in range(meses):
+        acumulado = acumulado * (1 + taxa_mensal) + budget_mensal
+        trajetoria.append(acumulado)
+    return np.array(trajetoria)
+
+
+def comparar_previsto_real(df: pd.DataFrame, ticker: str, budget_mensal: float, meses_solicitados: float) -> dict | None:
+    """Compara o valor acumulado REAL (últimos N meses de dados observados,
+    sem simulação) com o valor PREVISTO pelo modelo para um horizonte do
+    mesmo tamanho, ambos simulando aportes mensais de budget_mensal — serve
+    para o usuário avaliar a assertividade do protótipo: quanto o
+    investimento realmente teria rendido vs. quanto a projeção do sistema
+    estimava para um período de mesma duração.
+
+    Limitação (documentada também na interface): não é um backtest
+    walk-forward rigoroso — a projeção usa estatísticas (DY médio, CAGR de
+    preço) calculadas sobre todo o histórico disponível até hoje, não
+    apenas o que estaria disponível no início do período comparado. É uma
+    aproximação adequada para um protótipo de TCC, não uma avaliação de
+    performance de produção.
+    """
+    serie_real = retorno_real_mensal(df, ticker)
+    meses_comparados = min(int(round(meses_solicitados)), len(serie_real))
+    if meses_comparados <= 0 or budget_mensal <= 0:
+        return None
+
+    trajetoria_real = trajetoria_real_acumulada(df, ticker, budget_mensal, meses_comparados)
+    projecao = projetar_retorno_horizonte(df, ticker, meses_comparados)
+    trajetoria_prevista = serie_prevista_deterministica(
+        budget_mensal, meses_comparados, projecao["retorno_total_estimado_pct"]
+    )
+
+    total_aportado = budget_mensal * meses_comparados
+    valor_real_final = float(trajetoria_real[-1])
+    valor_previsto_final = float(trajetoria_prevista[-1])
+    retorno_real_pct = (valor_real_final / total_aportado - 1) * 100
+    retorno_previsto_pct = (valor_previsto_final / total_aportado - 1) * 100
+
+    return {
+        "ticker": ticker,
+        "meses_comparados": meses_comparados,
+        "trajetoria_real": trajetoria_real,
+        "trajetoria_prevista": trajetoria_prevista,
+        "total_aportado_rs": total_aportado,
+        "valor_real_final_rs": valor_real_final,
+        "valor_previsto_final_rs": valor_previsto_final,
+        "retorno_real_pct": retorno_real_pct,
+        "retorno_previsto_pct": retorno_previsto_pct,
+        "diferenca_rs": valor_real_final - valor_previsto_final,
+        "erro_absoluto_pp": abs(retorno_real_pct - retorno_previsto_pct),
+    }
+
+
 def recomendar(
     df: pd.DataFrame, faixa_risco_escolhida: str, budget_mensal: float, data_horizonte: pd.Timestamp
 ) -> pd.DataFrame:

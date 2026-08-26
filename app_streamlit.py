@@ -18,7 +18,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from recomendacao import calcular_perfis_risco, meses_entre, recomendar, simular_trajetorias_mensais
+from recomendacao import (
+    calcular_perfis_risco,
+    comparar_previsto_real,
+    meses_entre,
+    recomendar,
+    simular_trajetorias_mensais,
+)
 
 BASE_DIR = Path(__file__).parent / "dados"
 
@@ -46,13 +52,45 @@ st.caption(
     f"dados históricos até {data_referencia.date()}."
 )
 
+# Gate: nada de recomendação/gráfico aparece com valores padrão antes do usuário
+# informar o próprio perfil — evita mostrar um resultado que não é o dele.
+if "perfil_definido" not in st.session_state:
+    st.session_state.perfil_definido = False
+    st.session_state.faixa_risco_inicial = "Baixo"
+    st.session_state.budget_inicial = 500.0
+    st.session_state.horizonte_inicial = (data_referencia + pd.Timedelta(days=365)).date()
+
+if not st.session_state.perfil_definido:
+    st.subheader("Conte um pouco sobre o seu perfil para começar")
+    with st.form("form_perfil"):
+        faixa_risco_form = st.selectbox("Faixa de risco", ["Baixo", "Intermediário", "Alto"])
+        budget_form = st.number_input("Orçamento mensal (R$)", min_value=50.0, value=500.0, step=50.0)
+        horizonte_form = st.date_input(
+            "Até quando pretende investir?",
+            value=(data_referencia + pd.Timedelta(days=365)).date(),
+            min_value=(data_referencia + pd.Timedelta(days=31)).date(),
+        )
+        enviado = st.form_submit_button("Ver recomendação")
+    if enviado:
+        st.session_state.perfil_definido = True
+        st.session_state.faixa_risco_inicial = faixa_risco_form
+        st.session_state.budget_inicial = budget_form
+        st.session_state.horizonte_inicial = horizonte_form
+        st.rerun()
+    st.stop()
+
 with st.sidebar:
     st.header("Seu perfil")
-    faixa_risco = st.selectbox("Faixa de risco", ["Baixo", "Intermediário", "Alto"])
-    budget_mensal = st.number_input("Orçamento mensal (R$)", min_value=50.0, value=500.0, step=50.0)
+    faixa_risco = st.selectbox(
+        "Faixa de risco", ["Baixo", "Intermediário", "Alto"],
+        index=["Baixo", "Intermediário", "Alto"].index(st.session_state.faixa_risco_inicial),
+    )
+    budget_mensal = st.number_input(
+        "Orçamento mensal (R$)", min_value=50.0, value=st.session_state.budget_inicial, step=50.0,
+    )
     data_horizonte = st.date_input(
         "Até quando pretende investir?",
-        value=(data_referencia + pd.Timedelta(days=365)).date(),
+        value=st.session_state.horizonte_inicial,
         min_value=(data_referencia + pd.Timedelta(days=31)).date(),
     )
 
@@ -161,6 +199,51 @@ else:
     )
     fig.update_layout(xaxis_title="Mês", yaxis_title="Valor acumulado (R$)", height=450)
     st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("Real vs. previsto — validação do protótipo")
+    st.caption(
+        "Simula que você teria aportado o mesmo orçamento mensal, todo mês, nos últimos meses de "
+        "dados **reais** (preço + dividendos efetivamente pagos, sem simulação) e compara com o que "
+        "a projeção do sistema estimava para um período de mesma duração. Serve para avaliar a "
+        "assertividade do protótipo — quanto maior a diferença, menos confiável é a projeção para "
+        "aquele ativo. **Limitação**: não é um backtest walk-forward rigoroso (a projeção usa "
+        "estatísticas — DY médio, CAGR — calculadas sobre todo o histórico disponível hoje, não "
+        "apenas o que estaria disponível no início do período comparado)."
+    )
+    todos_tickers = sorted(df["ticker"].unique())
+    ticker_comparacao = st.selectbox(
+        "Ativo para comparar", todos_tickers,
+        index=todos_tickers.index(melhor["ticker"]) if melhor["ticker"] in todos_tickers else 0,
+    )
+    comparacao = comparar_previsto_real(df, ticker_comparacao, budget_mensal, meses)
+
+    if comparacao is None:
+        st.info("Não há meses reais suficientes para comparar esse ativo com o horizonte escolhido.")
+    else:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Retorno real (últimos meses)", f"{comparacao['retorno_real_pct']:.2f}%")
+        col2.metric("Retorno previsto pelo modelo", f"{comparacao['retorno_previsto_pct']:.2f}%")
+        col3.metric("Diferença (erro do modelo)", f"{comparacao['erro_absoluto_pp']:.2f} p.p.")
+
+        fig2 = go.Figure()
+        eixo_x2 = list(range(1, comparacao["meses_comparados"] + 1))
+        fig2.add_trace(go.Scatter(
+            x=eixo_x2, y=comparacao["trajetoria_real"], mode="lines+markers",
+            name="Real (dados observados)", line=dict(color="#1a7f37"),
+        ))
+        fig2.add_trace(go.Scatter(
+            x=eixo_x2, y=comparacao["trajetoria_prevista"], mode="lines+markers",
+            name="Previsto (projeção do modelo)", line=dict(color="#1f6feb", dash="dash"),
+        ))
+        fig2.add_hline(
+            y=comparacao["total_aportado_rs"], line_dash="dot",
+            annotation_text="Total aportado (sem rendimento)", annotation_position="bottom right",
+        )
+        fig2.update_layout(
+            xaxis_title=f"Mês (últimos {comparacao['meses_comparados']} meses de dados reais)",
+            yaxis_title="Valor acumulado (R$)", height=400,
+        )
+        st.plotly_chart(fig2, use_container_width=True)
 
 resultados_modelos = carregar_resultados_modelos()
 if resultados_modelos is not None:

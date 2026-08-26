@@ -287,13 +287,170 @@ alternativas que aceitam repo privado no free tier:
   apontar direto para `site_prototipo.html`. A proteção de acesso padrão do Netlify (exigia login)
   foi desativada pelo usuário em Visitor access — confirmado no ar (200 OK, testado com Playwright,
   interatividade funcionando, sem erros de console, idêntico à versão local).
-- **`app_streamlit.py`** → Streamlit Community Cloud (instruções passadas ao usuário, aguardando ele
-  fazer o login/deploy via navegador — não é algo que dá pra automatizar, exige OAuth interativo).
+- **`app_streamlit.py`** → Streamlit Community Cloud. URL final: **https://tccvitoriano.streamlit.app**.
+  Mesmo problema do Netlify se repetiu: por padrão o app de repo privado fica com acesso restrito
+  ("You do not have access to this app or it does not exist") até o usuário mudar a visibilidade nas
+  configurações de compartilhamento do app (share.streamlit.io → app → Settings/Share → tornar
+  público). Confirmado no ar com Playwright: título correto, tabela de perfis/recomendação
+  renderizando igual ao local, sem erros de console relevantes (só 403/404 de recursos não-críticos).
+
+**Os dois links de deploy estão confirmados e funcionando**:
+- Site estático (protótipo standalone, sem servidor): https://tccvitoriano.netlify.app
+- App interativo (Streamlit, mesma lógica em Python): https://tccvitoriano.streamlit.app
+
+## Pivô de escopo: site vira produto ativo, não só protótipo de TCC (24/08, sessão seguinte)
+Usuário decidiu, depois de ver o app funcionando, que quer transformar o site num produto real de
+acompanhamento de investimentos (login, dados persistidos por usuário), e que **o TCC fica em
+segundo plano por enquanto** — foco agora é construir a funcionalidade de produto. Decisão tomada
+com o usuário: usar **Supabase** (Postgres + Auth gratuitos) como backend, implementado no
+`site_prototipo.html` (é o "site" público, já no ar na Netlify) — não duplicado no
+`app_streamlit.py` por ora.
+
+### O que foi implementado
+- `supabase_schema.sql` (novo arquivo, raiz do projeto): schema da tabela `public.investimentos`
+  (ticker, classe_ativo, faixa_risco, orcamento_mensal, data_criacao, data_horizonte,
+  retorno_previsto_pct_horizonte, valor_previsto_horizonte_rs) com Row Level Security — cada usuário
+  só vê/edita as próprias linhas (`auth.uid() = user_id`). **Ação pendente do usuário**: criar um
+  projeto gratuito em supabase.com, rodar esse SQL no SQL Editor, e me passar a Project URL e a anon
+  key (a anon key é segura para expor no código público — a segurança real vem do RLS).
+- `site_prototipo.html`:
+  - SDK `@supabase/supabase-js@2` via CDN. Constantes `SUPABASE_URL`/`SUPABASE_ANON_KEY` no topo do
+    script (hoje com placeholder — `https://SEU-PROJETO.supabase.co` — propositalmente uma URL com
+    formato válido para não quebrar o `createClient()` antes de configurar; a inicialização também
+    está em `try/catch` e todo fluxo de auth trata `sb === null`/erros de rede sem travar a página).
+  - Tela de login/cadastro (`#authScreen`) por e-mail+senha via Supabase Auth — é o novo primeiro
+    gate da página, antes até do formulário de perfil. Sessão persistida automaticamente
+    (`sb.auth.onAuthStateChange`), com barra "e-mail logado + Sair" no topo da sidebar.
+  - Botão "Registrar" em cada linha da tabela de recomendação — grava um registro em
+    `investimentos` com um **snapshot fixo** da projeção do modelo no momento do registro
+    (`retorno_previsto_pct_horizonte`, `valor_previsto_horizonte_rs`) — fica estável como referência
+    mesmo que o modelo seja recalculado depois.
+  - Nova seção "Meus investimentos": lista os registros do usuário logado (via Supabase, com RLS),
+    cada um com botão excluir e, quando já passou pelo menos 1 mês desde o registro: card de "valor
+    de expectativa" (projeção original composta até os meses decorridos) vs. "valor real" (usando
+    `RETORNOS_MENSAIS_REAIS`, o mesmo dado real já usado na seção "Real vs. previsto") vs. diferença,
+    mais um gráfico de barras de lucro/prejuízo real mês a mês (verde/vermelho).
+- Testado com Playwright: página carrega sem erros mesmo com credenciais placeholder (falha
+  graciosa, mensagem traduzida em vez de travar o script).
+
+### Projeto Supabase real conectado e testado ponta a ponta (24/08, mesma sessão)
+Usuário criou o projeto (`https://rteyhxlikrggefdelxep.supabase.co`) e rodou o `supabase_schema.sql`.
+Credenciais conectadas em `site_prototipo.html` (`SUPABASE_URL`/`SUPABASE_ANON_KEY` — a publishable
+key, formato novo do Supabase que substitui a antiga anon key; **nunca** usar a `sb_secret_...`, essa
+ignora RLS e não pode ir para código público).
+
+**Pegadinhas encontradas ao configurar o Supabase Auth** (documentando para não repetir):
+- Projetos novos vêm com **"Confirm email" ativado por padrão** — sem isso, login falha logo após
+  cadastro até clicar num link enviado por e-mail. Desativado a pedido do usuário (prioriza fricção
+  baixa para demonstração agora; pode reativar depois).
+- O toggle de e-mail no painel (**Authentication → Sign In / Providers → Email**) tem duas chaves
+  diferentes: o provedor de e-mail em si (login/cadastro por e-mail+senha) e "Confirm email". Foi
+  preciso confirmar que o provedor continuava **ativado** — ele tinha sido desligado por engano ao
+  mexer na confirmação.
+- **O envio de e-mail padrão do Supabase (sem SMTP próprio) tem limite muito baixo** (poucos
+  e-mails/hora) — bati nesse limite só com testes automatizados. Para testar sem depender de caixa de
+  entrada real (e sem gastar essa cota), o caminho é **Authentication → Users → Add user** com
+  "Auto Confirm User" marcado — cria o usuário direto, sem disparar e-mail nenhum.
+- Se o site for usado por mais gente no futuro, vale configurar um provedor SMTP próprio no Supabase
+  (ex. Resend, tem free tier) para não esbarrar nesse limite — ainda não feito, ficou como próximo
+  passo quando o volume de usuários justificar.
+
+**Testado com Playwright, dois usuários de teste diferentes** (criados via dashboard):
+- Cadastro/login funcionando (após ajustar os dois toggles acima).
+- Perfil → dashboard → botão "Registrar" numa linha da tabela → grava em `investimentos` → aparece
+  em "Meus investimentos" com a mensagem correta ("ainda não passou um mês", já que o registro foi
+  feito no mesmo dia da última coleta de dados).
+- Excluir investimento funciona (RLS permite delete do próprio registro).
+- **Isolamento entre usuários confirmado**: um segundo usuário de teste, logado, não enxerga o
+  investimento registrado pelo primeiro — RLS funcionando como esperado.
+- Sair (logout) funciona, volta para a tela de login.
+- Sem erros de console em nenhuma etapa.
+
+**Status**: login + persistência por usuário está funcional e no ar (falta só publicar essa versão
+atualizada do `site_prototipo.html` no Netlify — próximo passo quando o usuário pedir o deploy).
+
+### Limitação importante herdada da falta de atualização automática de dados
+O usuário perguntou se há verificação diária de atualização — hoje **não há**: os dados de mercado
+são um retrato estático (`dataset_final.csv`, última coleta 24/08/2026), atualizado só rodando
+`coleta_dados.py` manualmente. Isso significa que, logo após um usuário registrar um investimento,
+"meses decorridos" será 0 até a próxima coleta de dados avançar `DATA_REFERENCIA` para além da data
+de registro — o acompanhamento real só fica útil de fato com coletas periódicas (idealmente
+automatizadas, ex. GitHub Actions agendado rodando `coleta_dados.py` + reexportando
+`RETORNOS_MENSAIS_REAIS`). Ainda não implementado — próximo passo natural depois do backend estar
+no ar.
+
+## Melhoria de UX — formulário de perfil antes do resultado (24/08)
+Usuário pediu duas melhorias no protótipo: (1) o valor acumulado no gráfico/tabela deve começar
+exatamente no valor que o usuário propôs investir (verificado: já era o caso matematicamente — no
+mês 1 o acumulado parte de R$0, então `acumulado = 0*(1+retorno) + orçamento = orçamento`,
+idêntico em `recomendacao.py` e no JS de `site_prototipo.html`; confirmado com Playwright que
+`p10[0] == p50[0] == p90[0] == orçamento` exatamente); (2) tabela/gráfico não devem aparecer com
+valores padrão ao abrir o site — o usuário deve primeiro informar o próprio perfil (faixa de risco,
+orçamento mensal, prazo) num formulário, só então a página completa carrega com a recomendação,
+mantendo os campos editáveis/selecionáveis depois (atualização em tempo real ao alterar).
+
+Implementado nos dois apps, sem renomear nenhum campo/rótulo existente:
+- `site_prototipo.html`: a barra lateral (com os 3 campos + novo botão "Ver recomendação") aparece
+  centralizada e sozinha na tela (classe CSS `pre-submit` esconde `<main>`); ao clicar, o formulário
+  "recolhe" para a posição normal de sidebar e o dashboard completo aparece, populado com os valores
+  que o próprio usuário digitou (os mesmos inputs seguem editáveis e reativos como antes).
+- `app_streamlit.py`: usa `st.session_state.perfil_definido` — antes de `True`, mostra só um
+  `st.form` central com os 3 campos e `st.stop()` (nada do dashboard roda); ao enviar, salva os
+  valores no `session_state` e recarrega (`st.rerun()`) com a sidebar normal pré-preenchida com o
+  que o usuário informou.
+- Testado com Playwright em ambos: gate esconde/mostra corretamente, valores digitados no formulário
+  chegam ao dashboard, sem erros de console.
+
+## Comparação real vs. previsto — validação da assertividade (24/08)
+Usuário pediu uma forma de comparar o quanto um investimento simulado (aportando o orçamento
+mensal informado) realmente teria rendido, usando dados reais, contra o quanto o modelo previa —
+para avaliar a assertividade do protótipo. Implementado em `recomendacao.py` e replicado em JS:
+
+- `retorno_real_mensal(df, ticker)`: retorno mensal REAL (não simulado) de cada ativo — variação de
+  preço + DY efetivamente pago (só FII, já que o retorno total de um FII inclui os proventos, não só
+  a variação de cota). Para ETF/Renda Fixa, a marcação a mercado já reflete o retorno total, sem
+  componente de renda separado.
+- `trajetoria_real_acumulada`: valor acumulado mês a mês SE o usuário tivesse aportado o orçamento
+  todo mês nos últimos N meses de dados reais — sem nenhuma simulação/aleatoriedade.
+- `serie_prevista_deterministica`: mesma trajetória, mas usando o retorno total estimado do modelo
+  (`projetar_retorno_horizonte`) distribuído uniformemente pelos meses — é a linha "previsto".
+- `comparar_previsto_real(df, ticker, budget, meses)`: junta as duas trajetórias e calcula retorno
+  real % vs retorno previsto % vs erro absoluto em pontos percentuais. **Limitação documentada na
+  interface**: não é um backtest walk-forward rigoroso (a projeção usa DY médio/CAGR calculados
+  sobre todo o histórico disponível hoje, não só o que estaria disponível no início do período
+  comparado) — é uma aproximação adequada para protótipo de TCC, não avaliação de performance real.
+
+**Resultado que confirma o achado central do TCC** (mercado eficiente + exceção do Tesouro Selic):
+testando com orçamento R$500/mês e horizonte de 12 meses — TESOURO_SELIC_2029: real 6,26% vs.
+previsto 6,68% (erro de só 0,42 p.p., modelo bem calibrado); BOVA11: real 1,17% vs. previsto 11,08%
+(erro de 9,91 p.p. — o modelo superestimou muito, porque a tendência de preço de 12 meses atrás não
+se repetiu, exatamente a limitação de "tendência especulativa" já documentada). Essa seção vira
+evidência direta para a discussão de resultados do TCC.
+
+### Implementação na interface
+- `app_streamlit.py`: nova seção "Real vs. previsto — validação do protótipo" logo após o gráfico de
+  Monte Carlo — seletor de ativo (default = ativo recomendado), 3 cards (retorno real / previsto /
+  erro em p.p.) e gráfico de linha (real sólida verde vs. previsto tracejado azul).
+- `site_prototipo.html`: mesma seção em JS puro. Como o HTML standalone só tinha estatísticas
+  agregadas embutidas (sem série histórica), foi adicionado `RETORNOS_MENSAIS_REAIS` — os retornos
+  mensais reais de cada um dos 6 ativos (~31 meses cada), exportados de
+  `recomendacao.py:retorno_real_mensal()` e embutidos como array JS. Select de ativo, cards e um
+  segundo gráfico SVG (`renderChartCompare`) desenhado à mão, mesmo padrão dos gráficos existentes.
+- Testado com Playwright em ambos: valores batem entre Python e JS (conferido dígito a dígito para
+  TESOURO_SELIC_2029 e BOVA11), sem erros de console.
+
+## Título, problema e objetivos — rascunho (24/08)
+Criado `tema_objetivos_rascunho.md` com título provisório, problema de pesquisa, hipótese, objetivo
+geral (1 verbo no infinitivo) e 5 objetivos específicos, seguindo o checklist oficial da FAM. Título
+provisório ainda **pendente de decisão do usuário** (2 alternativas mais curtas também no arquivo).
+Falta revisão do orientador.
 
 ## Próximos passos do cronograma
-- EDA, modelagem e protótipo multi-ativos: concluído em 24/08 (adiantado).
-- Ainda falta: localizar o template oficial da FAM (Protótipo) no Canvas; redigir título provisório,
-  problema de pesquisa, objetivo geral/específicos e o texto do TCC nesse template; linkar o
-  repositório Git local ao GitHub (usuário precisa rodar `gh auth login` interativamente).
+- EDA, modelagem, protótipo multi-ativos e deploy online (Netlify + Streamlit Cloud): concluído em
+  24/08 (adiantado).
+- Ainda falta: localizar o template oficial da FAM (Protótipo) no Canvas; usuário decidir o título
+  final; revisar rascunho de tema/objetivos com o orientador; redigir o texto do TCC no template
+  oficial; linkar o repositório Git local ao GitHub (usuário precisa rodar `gh auth login`
+  interativamente, se ainda não tiver feito).
 - Construir modelo/protótipo + redigir texto: até 14/10
 - Checkpoint: 16/10 | AO1: 19/10 | Correções: até 31/10 | AO2: 02/11

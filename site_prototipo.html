@@ -35,6 +35,7 @@
     padding: 32px 24px;
   }
   aside h2 { font-size: 15px; margin: 0 0 20px; }
+  aside .intro-text { font-size: 13.5px; color: var(--text-muted); margin: 0 0 20px; }
   .field { margin-bottom: 20px; }
   .field label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
   .field select, .field input {
@@ -46,6 +47,30 @@
     font-family: inherit;
     background: var(--bg);
     color: var(--text);
+  }
+  #btnComecar, .btn-primario {
+    width: 100%;
+    padding: 11px 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14.5px;
+    font-weight: 600;
+    font-family: inherit;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  #btnComecar:hover, .btn-primario:hover { opacity: 0.92; }
+
+  /* Antes de enviar o formulário, só o próprio formulário aparece — nada de
+     tabela/gráfico com valores padrão até o usuário informar o perfil dele. */
+  .layout.pre-submit { align-items: center; justify-content: center; min-height: 100vh; }
+  .layout.pre-submit main { display: none; }
+  .layout.pre-submit aside {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(20, 24, 33, 0.08);
+    width: 380px;
   }
   main { flex: 1; padding: 32px 36px 80px; min-width: 0; }
   h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
@@ -85,12 +110,48 @@
   .card .v { font-size: 22px; font-weight: 700; }
   .card .d { font-size: 12px; color: var(--ok); margin-top: 4px; }
 
-  #chart-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  #chart-wrap, #chartCompare-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; margin-top: 10px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
   .empty { color: var(--text-muted); font-size: 14px; padding: 20px; text-align: center; }
+
+  .btn-secundario {
+    width: 100%; padding: 10px 10px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-family: inherit; background: var(--bg); color: var(--text);
+    cursor: pointer; margin-top: 8px;
+  }
+  .btn-secundario:hover { background: var(--bg-alt); }
+  .btn-registrar {
+    padding: 6px 12px; font-size: 12.5px; border: 1px solid var(--accent); border-radius: 7px;
+    background: var(--accent-bg); color: var(--accent); cursor: pointer; font-family: inherit;
+  }
+  .btn-registrar:hover { opacity: 0.85; }
+  .btn-excluir {
+    padding: 6px 12px; font-size: 12.5px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--bg); color: #c92a2a; cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+  .btn-excluir:hover { background: #fff0f0; }
+
+  .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .auth-card {
+    width: 380px; max-width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: 0 8px 28px rgba(20, 24, 33, 0.08); padding: 32px 24px;
+  }
+  .auth-card h2 { font-size: 18px; margin: 0 0 8px; }
+  .auth-erro { font-size: 13px; margin: 6px 0 14px; }
+
+  .conta-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 12.5px; color: var(--text-muted); margin-bottom: 20px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .conta-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conta-bar button {
+    padding: 5px 10px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
 
   @media (max-width: 800px) {
     .layout { flex-direction: column; }
@@ -100,9 +161,32 @@
 </style>
 </head>
 <body>
-<div class="layout">
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <h2>Entrar</h2>
+    <p class="intro-text">Entre com e-mail e senha para registrar e acompanhar seus investimentos.</p>
+    <div class="field">
+      <label for="authEmail">E-mail</label>
+      <input type="email" id="authEmail" autocomplete="email">
+    </div>
+    <div class="field">
+      <label for="authSenha">Senha</label>
+      <input type="password" id="authSenha" autocomplete="current-password">
+    </div>
+    <p class="auth-erro" id="authErro" style="display:none;"></p>
+    <button id="btnEntrar" type="button" class="btn-primario">Entrar</button>
+    <button id="btnCriarConta" type="button" class="btn-secundario">Criar conta</button>
+  </div>
+</div>
+
+<div class="layout pre-submit" id="layout" style="display:none;">
   <aside>
+    <div class="conta-bar">
+      <span id="contaEmail"></span>
+      <button id="btnSair" type="button">Sair</button>
+    </div>
     <h2>Seu perfil</h2>
+    <p class="intro-text" id="introText">Antes de ver a recomendação, conte um pouco sobre o seu perfil de investimento.</p>
     <div class="field">
       <label for="faixaRisco">Faixa de risco</label>
       <select id="faixaRisco">
@@ -119,6 +203,7 @@
       <label for="horizonte">Até quando pretende investir?</label>
       <input type="date" id="horizonte" value="2027-08-24" min="2026-09-24">
     </div>
+    <button id="btnComecar" type="button">Ver recomendação</button>
   </aside>
 
   <main>
@@ -166,10 +251,58 @@
         <div class="legend" id="legend"></div>
       </div>
     </section>
+
+    <section>
+      <h2>Real vs. previsto — validação do protótipo</h2>
+      <p class="hint">
+        Simula que você teria aportado o mesmo orçamento mensal, todo mês, nos últimos meses de dados
+        <strong>reais</strong> (preço + dividendos efetivamente pagos, sem simulação) e compara com o
+        que a projeção do sistema estimava para um período de mesma duração. Serve para avaliar a
+        assertividade do protótipo — quanto maior a diferença, menos confiável é a projeção para
+        aquele ativo. <strong>Limitação</strong>: não é um backtest walk-forward rigoroso (a projeção
+        usa estatísticas — DY médio, CAGR — calculadas sobre todo o histórico disponível hoje, não
+        apenas o que estaria disponível no início do período comparado).
+      </p>
+      <div class="field" style="max-width:320px;">
+        <label for="tickerComparacao">Ativo para comparar</label>
+        <select id="tickerComparacao"></select>
+      </div>
+      <div class="cards" id="cardsComparacao"></div>
+      <div id="chartCompare-wrap">
+        <svg id="chartCompare" width="100%" height="340" viewBox="0 0 900 340" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend" id="legendCompare"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Meus investimentos</h2>
+      <p class="hint">
+        Investimentos que você registrou a partir da tabela de recomendação acima (botão
+        "Registrar"). Cada um mostra o valor de expectativa — a projeção feita no momento do
+        registro, que fica fixa como referência — comparado ao valor real acumulado com dados de
+        mercado observados desde então, além do lucro/prejuízo real mês a mês.
+      </p>
+      <div id="meusInvestimentos"></div>
+    </section>
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+// Configuração do Supabase (projeto próprio, plano gratuito) — a anon key é
+// segura para expor no código público: o acesso real é controlado pelas
+// políticas de Row Level Security da tabela `investimentos` (ver
+// supabase_schema.sql), não pela chave em si.
+const SUPABASE_URL = 'https://rteyhxlikrggefdelxep.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_GgeSQJ4IB1pNdjz_I8huWQ__c6dKs0K';
+let sb = null;
+try {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+} catch (e) {
+  console.error('Supabase não inicializado — configure SUPABASE_URL e SUPABASE_ANON_KEY.', e);
+}
+let usuarioAtual = null;
+
 const DATA_REFERENCIA = new Date('2026-08-24T00:00:00');
 const FUNDOS = {
   KNCR11: { classeAtivo: 'FII', volatilidadeAnualizada: 9.1795, volatilidadeMensal: 2.6499, dyMedioMensal: 1.0818, faixaRisco: 'Intermediário', cagrMensal: 0.002664, ultimoFechamento: 106.98 },
@@ -182,6 +315,17 @@ const FUNDOS = {
 const CORES = {
   KNCR11: '#1f6feb', HGCR11: '#e8590c', MXRF11: '#1a7f37',
   BOVA11: '#9c36b5', TESOURO_SELIC_2029: '#0ca678', TESOURO_IPCA_2035: '#c92a2a',
+};
+// Retorno mensal REAL (não simulado) de cada ativo — preço + DY efetivamente
+// pago (FII) — um valor por mês, em ordem cronológica, exportado de
+// recomendacao.py:retorno_real_mensal(). Usado só na seção "Real vs. previsto".
+const RETORNOS_MENSAIS_REAIS = {
+  KNCR11: [1.344702, 0.19124, 2.52562, 0.482886, 2.340824, 0.740987, 0.531934, 1.895318, -0.734212, 0.549898, -0.102886, 0.092442, 1.435953, 3.27958, -0.292065, 2.555469, 1.732887, 1.12628, 1.715513, 1.04257, 2.030427, 1.456125, 2.325731, 0.652618, 1.389207, -0.160736, 1.621718, 1.459051, 1.906176, 1.386537, 0.211094],
+  HGCR11: [1.280616, 0.752542, -0.431183, 1.627831, 0.527808, 0.446075, 0.111228, -0.650445, -2.535543, -0.256696, 0.9738, -6.747661, 9.324283, 0.478145, 1.246406, 1.790827, -1.326157, 1.51894, -1.721457, 4.223828, 0.779964, -0.777684, 6.024614, 1.832658, 0.044606, 0.964209, 2.718819, -1.23423, -4.810151, 3.442721, -1.089221],
+  MXRF11: [-2.891153, 2.671601, 0.32902, -0.04575, 0.216806, 0.322219, 0.425523, -1.120906, -1.961338, -1.766827, 0.97249, -0.700177, -0.468909, 1.840157, 2.616284, 3.880099, 0.67059, 1.892536, 1.234333, 2.627952, -0.16385, 0.859246, -0.001779, 1.847174, 4.857554, 0.312799, 1.1018, 1.654739, -0.533307, -1.536546, -3.158597],
+  BOVA11: [1.04881, -0.734531, -1.568407, -3.039712, 1.44952, 3.040372, 6.901, -3.144796, -1.689636, -3.120545, -4.128515, 4.88616, -2.430894, 6.074494, 3.401414, 1.792904, 1.388163, -4.394553, 6.636896, 3.422383, 2.213069, 6.447647, 1.379532, 12.78481, 3.905724, -0.475265, -0.103104, -7.246456, -0.995608, 3.5315, -3.433893],
+  TESOURO_SELIC_2029: [0.803337, 0.915128, 0.906141, 0.81651, 0.783651, 0.959111, 0.882323, 0.886336, 0.998345, 0.857577, 0.789303, 1.20239, 1.012143, 0.958685, 1.046919, 1.181938, 1.104883, 1.316738, 1.176844, 1.246404, 1.30501, 1.072667, 1.187714, 1.24781, 1.001282, 1.282309, 1.079095, 1.077057, 1.129624, 1.238117, 0.807929],
+  TESOURO_IPCA_2035: [0.715538, -0.997199, -2.033676, 0.618622, -1.871621, 2.997084, 1.150779, -1.263457, -2.721165, -2.623923, -2.747659, 0.826213, -1.642265, 5.050788, 1.731011, 3.634643, 1.118819, -0.932408, -0.462406, 0.677937, 1.313187, 2.692573, 0.325094, -0.68277, 2.881044, -1.286329, 2.547047, -0.518188, -2.18756, -0.394253, 3.173264],
 };
 
 function fmtPct(v) { return v === null || v === undefined ? '—' : v.toFixed(2) + '%'; }
@@ -253,6 +397,63 @@ function simularTrajetorias(budget, meses, retornoTotalPct, volatilidadeMensalPc
     p90.push(percentil(valores, 90));
   }
   return { p10, p50, p90 };
+}
+
+function trajetoriaRealComGanhoMensal(ticker, budget, meses) {
+  const serie = (RETORNOS_MENSAIS_REAIS[ticker] || []).slice(-meses);
+  let acumulado = 0;
+  const trajetoria = [];
+  const ganhoMensalRs = [];
+  for (const r of serie) {
+    const ganho = acumulado * (r / 100);
+    acumulado = acumulado + ganho + budget;
+    trajetoria.push(acumulado);
+    ganhoMensalRs.push(ganho);
+  }
+  return { trajetoria, ganhoMensalRs };
+}
+
+function trajetoriaReal(ticker, budget, meses) {
+  return trajetoriaRealComGanhoMensal(ticker, budget, meses).trajetoria;
+}
+
+function serieComTaxaFixa(budget, meses, taxaMensal) {
+  if (meses <= 0 || budget <= 0) return [];
+  let acumulado = 0;
+  const trajetoria = [];
+  for (let i = 0; i < meses; i++) {
+    acumulado = acumulado * (1 + taxaMensal) + budget;
+    trajetoria.push(acumulado);
+  }
+  return trajetoria;
+}
+
+function serieDeterministica(budget, meses, retornoTotalPct) {
+  if (meses <= 0 || budget <= 0) return [];
+  const taxaMensal = Math.pow(1 + retornoTotalPct / 100, 1 / meses) - 1;
+  return serieComTaxaFixa(budget, meses, taxaMensal);
+}
+
+function compararPrevistoReal(ticker, budget, mesesSolicitados) {
+  const seriePossivel = RETORNOS_MENSAIS_REAIS[ticker] || [];
+  const mesesComparados = Math.min(Math.round(mesesSolicitados), seriePossivel.length);
+  if (mesesComparados <= 0 || budget <= 0) return null;
+
+  const real = trajetoriaReal(ticker, budget, mesesComparados);
+  const proj = projetarRetorno(ticker, mesesComparados);
+  const previsto = serieDeterministica(budget, mesesComparados, proj.retornoTotal);
+
+  const totalAportado = budget * mesesComparados;
+  const valorRealFinal = real[real.length - 1];
+  const valorPrevistoFinal = previsto[previsto.length - 1];
+  const retornoRealPct = (valorRealFinal / totalAportado - 1) * 100;
+  const retornoPrevistoPct = (valorPrevistoFinal / totalAportado - 1) * 100;
+
+  return {
+    ticker, mesesComparados, real, previsto, totalAportado,
+    retornoRealPct, retornoPrevistoPct,
+    erroAbsolutoPp: Math.abs(retornoRealPct - retornoPrevistoPct),
+  };
 }
 
 function recomendar(faixaRisco, budget, dataHorizonte) {
@@ -356,6 +557,297 @@ function renderChart(linhas, meses, budget) {
   });
 }
 
+function renderChartCompare(comp) {
+  const svg = document.getElementById('chartCompare');
+  const legend = document.getElementById('legendCompare');
+  svg.innerHTML = '';
+  legend.innerHTML = '';
+  if (!comp) return;
+
+  const { real, previsto, mesesComparados: nMeses, totalAportado } = comp;
+  const W = 900, H = 340, padL = 65, padR = 20, padT = 20, padB = 40;
+  const maxY = Math.max(totalAportado, ...real, ...previsto) * 1.05;
+  const minY = 0;
+
+  const x = i => padL + (i / nMeses) * (W - padL - padR);
+  const y = v => H - padB - ((v - minY) / (maxY - minY)) * (H - padT - padB);
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  svg.appendChild(el('line', { x1: padL, y1: H - padB, x2: W - padR, y2: H - padB, stroke: '#c7cbd1' }));
+  svg.appendChild(el('line', { x1: padL, y1: padT, x2: padL, y2: H - padB, stroke: '#c7cbd1' }));
+
+  for (let i = 0; i <= 4; i++) {
+    const val = minY + ((maxY - minY) / 4) * i;
+    const yy = y(val);
+    svg.appendChild(el('line', { x1: padL, y1: yy, x2: W - padR, y2: yy, stroke: '#eef0f3' }));
+    const t = el('text', { x: padL - 8, y: yy + 4, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'end' });
+    t.textContent = 'R$ ' + Math.round(val).toLocaleString('pt-BR');
+    svg.appendChild(t);
+  }
+
+  const yAportado = y(totalAportado);
+  svg.appendChild(el('line', { x1: padL, y1: yAportado, x2: W - padR, y2: yAportado, stroke: '#1c1f26', 'stroke-dasharray': '4,4', 'stroke-width': 1 }));
+  const labelAportado = el('text', { x: W - padR, y: yAportado - 6, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'end' });
+  labelAportado.textContent = 'Total aportado (sem rendimento)';
+  svg.appendChild(labelAportado);
+
+  const step = Math.max(1, Math.round(nMeses / 10));
+  for (let i = 0; i <= nMeses; i += step) {
+    const t = el('text', { x: x(i), y: H - padB + 18, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'middle' });
+    t.textContent = i;
+    svg.appendChild(t);
+  }
+
+  const pontosReal = real.map((v, i) => `${x(i + 1)},${y(v)}`).join(' ');
+  svg.appendChild(el('polyline', { points: pontosReal, fill: 'none', stroke: '#1a7f37', 'stroke-width': 2.5 }));
+  real.forEach((v, i) => svg.appendChild(el('circle', { cx: x(i + 1), cy: y(v), r: 2.5, fill: '#1a7f37' })));
+
+  const pontosPrevisto = previsto.map((v, i) => `${x(i + 1)},${y(v)}`).join(' ');
+  svg.appendChild(el('polyline', { points: pontosPrevisto, fill: 'none', stroke: '#1f6feb', 'stroke-width': 2.5, 'stroke-dasharray': '6,4' }));
+  previsto.forEach((v, i) => svg.appendChild(el('circle', { cx: x(i + 1), cy: y(v), r: 2.5, fill: '#1f6feb' })));
+
+  const legReal = document.createElement('span');
+  legReal.innerHTML = '<i style="background:#1a7f37"></i>Real (dados observados)';
+  legend.appendChild(legReal);
+  const legPrevisto = document.createElement('span');
+  legPrevisto.innerHTML = '<i style="background:#1f6feb"></i>Previsto (projeção do modelo)';
+  legend.appendChild(legPrevisto);
+}
+
+let tickerComparacaoTocado = false;
+
+function renderComparacao(budget, meses) {
+  const cardsEl = document.getElementById('cardsComparacao');
+  const ticker = document.getElementById('tickerComparacao').value;
+  const comp = ticker ? compararPrevistoReal(ticker, budget, meses) : null;
+
+  if (!comp) {
+    cardsEl.innerHTML = '<div class="empty">Não há meses reais suficientes para comparar esse ativo com o horizonte escolhido.</div>';
+    renderChartCompare(null);
+    return;
+  }
+
+  cardsEl.innerHTML = `
+    <div class="card"><div class="k">Retorno real (últimos meses)</div><div class="v">${fmtPct(comp.retornoRealPct)}</div></div>
+    <div class="card"><div class="k">Retorno previsto pelo modelo</div><div class="v">${fmtPct(comp.retornoPrevistoPct)}</div></div>
+    <div class="card"><div class="k">Diferença (erro do modelo)</div><div class="v">${comp.erroAbsolutoPp.toFixed(2)} p.p.</div></div>
+  `;
+  renderChartCompare(comp);
+}
+
+// ---- Autenticação (Supabase Auth) -----------------------------------------
+
+function traduzErroAuth(error) {
+  const msg = error && error.message || '';
+  if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (msg.includes('User already registered')) return 'Já existe uma conta com esse e-mail — tente entrar.';
+  if (msg.includes('Password should be at least')) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (msg.includes('Unable to validate email address')) return 'E-mail inválido.';
+  if (msg.includes('Failed to fetch')) return 'Não foi possível conectar ao servidor — verifique se o Supabase está configurado (SUPABASE_URL/SUPABASE_ANON_KEY).';
+  return msg || 'Não foi possível completar a operação.';
+}
+
+function mostrarErroAuth(msg, ok) {
+  const el = document.getElementById('authErro');
+  if (!msg) { el.style.display = 'none'; return; }
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.color = ok ? 'var(--ok)' : '#c92a2a';
+}
+
+async function entrar() {
+  if (!sb) { mostrarErroAuth('Este site ainda não foi conectado a um banco de dados (Supabase não configurado).'); return; }
+  const email = document.getElementById('authEmail').value.trim();
+  const senha = document.getElementById('authSenha').value;
+  mostrarErroAuth('');
+  const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if (error) mostrarErroAuth(traduzErroAuth(error));
+}
+
+async function criarConta() {
+  if (!sb) { mostrarErroAuth('Este site ainda não foi conectado a um banco de dados (Supabase não configurado).'); return; }
+  const email = document.getElementById('authEmail').value.trim();
+  const senha = document.getElementById('authSenha').value;
+  mostrarErroAuth('');
+  const { error } = await sb.auth.signUp({ email, password: senha });
+  if (error) { mostrarErroAuth(traduzErroAuth(error)); return; }
+  mostrarErroAuth('Conta criada! Se a confirmação por e-mail estiver ativada no projeto, verifique sua caixa de entrada antes de entrar.', true);
+}
+
+async function sair() {
+  if (sb) await sb.auth.signOut();
+}
+
+function atualizarVisibilidadeAuth() {
+  const authScreen = document.getElementById('authScreen');
+  const layout = document.getElementById('layout');
+  if (usuarioAtual) {
+    authScreen.style.display = 'none';
+    layout.style.display = 'flex';
+    document.getElementById('contaEmail').textContent = usuarioAtual.email;
+    carregarMeusInvestimentos();
+  } else {
+    authScreen.style.display = 'flex';
+    layout.style.display = 'none';
+  }
+}
+
+// ---- Meus investimentos (persistidos no Supabase) --------------------------
+
+async function salvarInvestimento(ticker, classeAtivo, retornoTotalPct, valorAcumuladoRs) {
+  if (!usuarioAtual) return;
+  const horizonteStr = document.getElementById('horizonte').value;
+  const faixaRisco = document.getElementById('faixaRisco').value;
+  const budget = parseFloat(document.getElementById('budget').value) || 0;
+  const { error } = await sb.from('investimentos').insert({
+    user_id: usuarioAtual.id,
+    ticker,
+    classe_ativo: classeAtivo,
+    faixa_risco: faixaRisco,
+    orcamento_mensal: budget,
+    data_horizonte: horizonteStr,
+    retorno_previsto_pct_horizonte: retornoTotalPct,
+    valor_previsto_horizonte_rs: valorAcumuladoRs,
+  });
+  if (error) {
+    alert('Erro ao registrar investimento: ' + error.message);
+    return;
+  }
+  await carregarMeusInvestimentos();
+  document.getElementById('meusInvestimentos').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function excluirInvestimento(id) {
+  if (!confirm('Excluir este investimento registrado?')) return;
+  const { error } = await sb.from('investimentos').delete().eq('id', id);
+  if (error) { alert('Erro ao excluir: ' + error.message); return; }
+  await carregarMeusInvestimentos();
+}
+
+function calcularProgressoInvestimento(inv) {
+  const dataCriacao = new Date(inv.data_criacao);
+  const dataHorizonte = new Date(inv.data_horizonte + 'T00:00:00');
+  const diasDecorridos = (DATA_REFERENCIA - dataCriacao) / (1000 * 60 * 60 * 24);
+  const mesesDecorridos = diasDecorridos > 0 ? Math.floor(diasDecorridos / 30.44) : 0;
+
+  if (mesesDecorridos <= 0) {
+    return { mesesDecorridos: 0, valorPrevistoAteAgora: 0, valorRealAteAgora: 0, ganhoMensalRs: [] };
+  }
+
+  const mesesHorizonteOriginal = Math.max(mesesEntre(dataCriacao, dataHorizonte) || 1, 1);
+  const taxaMensalPrevista = Math.pow(1 + inv.retorno_previsto_pct_horizonte / 100, 1 / mesesHorizonteOriginal) - 1;
+  const previstoTrajetoria = serieComTaxaFixa(inv.orcamento_mensal, mesesDecorridos, taxaMensalPrevista);
+  const { trajetoria: realTrajetoria, ganhoMensalRs } = trajetoriaRealComGanhoMensal(inv.ticker, inv.orcamento_mensal, mesesDecorridos);
+
+  return {
+    mesesDecorridos,
+    valorPrevistoAteAgora: previstoTrajetoria.length ? previstoTrajetoria[previstoTrajetoria.length - 1] : 0,
+    valorRealAteAgora: realTrajetoria.length ? realTrajetoria[realTrajetoria.length - 1] : 0,
+    ganhoMensalRs,
+  };
+}
+
+function renderInvestimentoCard(inv, p) {
+  const registradoEm = new Date(inv.data_criacao).toLocaleDateString('pt-BR');
+  const horizonteFmt = new Date(inv.data_horizonte + 'T00:00:00').toLocaleDateString('pt-BR');
+
+  const corpo = p.mesesDecorridos <= 0
+    ? `<p class="empty">Ainda não passou um mês completo desde o registro. Volte em breve para ver a comparação com dados reais.</p>`
+    : `
+      <div class="cards" style="margin-top:14px;">
+        <div class="card"><div class="k">Valor de expectativa (até agora)</div><div class="v">${fmtRS(p.valorPrevistoAteAgora)}</div></div>
+        <div class="card"><div class="k">Valor real (até agora)</div><div class="v">${fmtRS(p.valorRealAteAgora)}</div></div>
+        <div class="card"><div class="k">Diferença</div><div class="v">${fmtRS(p.valorRealAteAgora - p.valorPrevistoAteAgora)}</div></div>
+      </div>
+      <p class="hint" style="margin-top:10px;">Lucro/prejuízo real por mês (variação de mercado, sem contar o aporte novo):</p>
+      <svg id="ganhoChart-${inv.id}" width="100%" height="140" viewBox="0 0 900 140" preserveAspectRatio="xMidYMid meet"></svg>
+    `;
+
+  return `
+    <div class="card" style="margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:start; flex-wrap:wrap; gap:10px;">
+        <div>
+          <div class="v" style="font-size:17px;">${inv.ticker} <span style="font-weight:400; color:var(--text-muted); font-size:13px;">(${inv.classe_ativo} · ${inv.faixa_risco})</span></div>
+          <div class="k">Orçamento ${fmtRS(inv.orcamento_mensal)}/mês · registrado em ${registradoEm} · horizonte até ${horizonteFmt}</div>
+        </div>
+        <button type="button" class="btn-excluir" data-id="${inv.id}">Excluir</button>
+      </div>
+      ${corpo}
+    </div>
+  `;
+}
+
+function renderGraficoGanhoMensal(svgId, ganhoMensalRs) {
+  const svg = document.getElementById(svgId);
+  if (!svg || !ganhoMensalRs.length) return;
+  svg.innerHTML = '';
+  const W = 900, H = 140, padL = 65, padR = 20, padT = 10, padB = 24;
+  const n = ganhoMensalRs.length;
+  const maxAbs = Math.max(1, ...ganhoMensalRs.map(v => Math.abs(v))) * 1.15;
+
+  const x = i => padL + ((i + 0.5) / n) * (W - padL - padR);
+  const barW = Math.max(2, ((W - padL - padR) / n) * 0.6);
+  const yZero = padT + (H - padT - padB) / 2;
+  const y = v => yZero - (v / maxAbs) * (H - padT - padB) / 2;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  svg.appendChild(el('line', { x1: padL, y1: yZero, x2: W - padR, y2: yZero, stroke: '#c7cbd1' }));
+
+  ganhoMensalRs.forEach((v, i) => {
+    const cor = v >= 0 ? '#1a7f37' : '#c92a2a';
+    const yTop = Math.min(y(v), yZero);
+    const altura = Math.max(Math.abs(y(v) - yZero), 1);
+    svg.appendChild(el('rect', { x: x(i) - barW / 2, y: yTop, width: barW, height: altura, fill: cor, rx: 2 }));
+  });
+
+  const step = Math.max(1, Math.round(n / 12));
+  for (let i = 0; i < n; i += step) {
+    const t = el('text', { x: x(i), y: H - padB + 14, 'font-size': 10, fill: '#5b6270', 'text-anchor': 'middle' });
+    t.textContent = i + 1;
+    svg.appendChild(t);
+  }
+}
+
+async function carregarMeusInvestimentos() {
+  const container = document.getElementById('meusInvestimentos');
+  if (!usuarioAtual) { container.innerHTML = ''; return; }
+  container.innerHTML = '<p class="hint">Carregando...</p>';
+
+  const { data, error } = await sb.from('investimentos')
+    .select('*')
+    .eq('user_id', usuarioAtual.id)
+    .order('data_criacao', { ascending: false });
+
+  if (error) {
+    container.innerHTML = `<div class="empty">Erro ao carregar seus investimentos: ${error.message}</div>`;
+    return;
+  }
+  if (!data || !data.length) {
+    container.innerHTML = '<div class="empty">Você ainda não registrou nenhum investimento. Use o botão "Registrar" na tabela de recomendação acima.</div>';
+    return;
+  }
+
+  const progresso = {};
+  data.forEach(inv => { progresso[inv.id] = calcularProgressoInvestimento(inv); });
+  container.innerHTML = data.map(inv => renderInvestimentoCard(inv, progresso[inv.id])).join('');
+  data.forEach(inv => {
+    const p = progresso[inv.id];
+    if (p.mesesDecorridos > 0) renderGraficoGanhoMensal(`ganhoChart-${inv.id}`, p.ganhoMensalRs);
+  });
+}
+
 function atualizar() {
   const faixaRisco = document.getElementById('faixaRisco').value;
   const budget = parseFloat(document.getElementById('budget').value) || 0;
@@ -370,6 +862,7 @@ function atualizar() {
     tituloEl.textContent = 'Selecione uma data-horizonte válida.';
     cardsEl.innerHTML = ''; tabelaEl.innerHTML = '';
     document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    document.getElementById('cardsComparacao').innerHTML = ''; renderChartCompare(null);
     return;
   }
 
@@ -378,6 +871,7 @@ function atualizar() {
     tituloEl.textContent = 'A data-horizonte precisa ser posterior à última data disponível.';
     cardsEl.innerHTML = ''; tabelaEl.innerHTML = '';
     document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    document.getElementById('cardsComparacao').innerHTML = ''; renderChartCompare(null);
     return;
   }
 
@@ -388,6 +882,7 @@ function atualizar() {
     cardsEl.innerHTML = '<div class="empty">Nenhum ativo elegível nessa faixa de risco.</div>';
     tabelaEl.innerHTML = '';
     document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    document.getElementById('cardsComparacao').innerHTML = ''; renderChartCompare(null);
     return;
   }
 
@@ -404,7 +899,7 @@ function atualizar() {
       <tr>
         <th>Ticker</th><th>Classe</th><th>Volatilidade anualizada (%)</th>
         <th>Retorno de renda (%)</th><th>Tendência de preço (%, especulativo)</th>
-        <th>Retorno total (%)</th><th>Valor acumulado (R$)</th><th>Total aportado (R$)</th>
+        <th>Retorno total (%)</th><th>Valor acumulado (R$)</th><th>Total aportado (R$)</th><th>Ação</th>
       </tr>
     </thead>
     <tbody>
@@ -418,20 +913,73 @@ function atualizar() {
           <td>${fmtPct(l.retornoTotal)}</td>
           <td>${fmtRS(l.valorAcumulado)}</td>
           <td>${fmtRS(l.totalAportado)}</td>
+          <td><button type="button" class="btn-registrar" data-ticker="${l.ticker}" data-classe="${l.classeAtivo}" data-retorno="${l.retornoTotal}" data-valor="${l.valorAcumulado}">Registrar</button></td>
         </tr>
       `).join('')}
     </tbody>
   `;
 
   renderChart(linhas, meses, budget);
+
+  const tickerSelect = document.getElementById('tickerComparacao');
+  if (!tickerComparacaoTocado) tickerSelect.value = melhor.ticker;
+  renderComparacao(budget, meses);
 }
 
 document.getElementById('dataRef').textContent = DATA_REFERENCIA.toLocaleDateString('pt-BR');
 renderPerfis();
+document.getElementById('tickerComparacao').innerHTML = Object.keys(FUNDOS)
+  .map(ticker => `<option value="${ticker}">${ticker}</option>`).join('');
 ['faixaRisco', 'budget', 'horizonte'].forEach(id => {
   document.getElementById(id).addEventListener('input', atualizar);
 });
+document.getElementById('tickerComparacao').addEventListener('change', () => {
+  tickerComparacaoTocado = true;
+  atualizar();
+});
 atualizar();
+
+// Gate: a recomendação/gráfico só aparecem depois que o usuário confirma o
+// próprio perfil no formulário — nada de resultado com valores padrão antes
+// disso. Depois de enviado, os mesmos campos continuam editáveis/selecionáveis
+// na barra lateral e a página atualiza em tempo real, como antes.
+document.getElementById('btnComecar').addEventListener('click', () => {
+  atualizar();
+  document.getElementById('layout').classList.remove('pre-submit');
+  document.getElementById('introText').textContent = 'Você pode ajustar seu perfil a qualquer momento — a recomendação atualiza automaticamente.';
+});
+
+// Autenticação: a barra lateral e o dashboard inteiro (div#layout) só aparecem
+// depois de logado — sb.auth cuida de persistir a sessão entre visitas.
+document.getElementById('btnEntrar').addEventListener('click', entrar);
+document.getElementById('btnCriarConta').addEventListener('click', criarConta);
+document.getElementById('btnSair').addEventListener('click', sair);
+document.getElementById('authSenha').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
+
+if (sb) {
+  sb.auth.onAuthStateChange((_event, session) => {
+    usuarioAtual = session ? session.user : null;
+    atualizarVisibilidadeAuth();
+  });
+} else {
+  mostrarErroAuth('Este site ainda não foi conectado a um banco de dados (Supabase não configurado) — login e registro de investimentos indisponíveis por enquanto.');
+}
+
+// Delegação de eventos: os botões "Registrar" (tabela de recomendação) e
+// "Excluir" (Meus investimentos) são recriados a cada atualização do DOM,
+// então o listener fica no document em vez de ser religado a cada render.
+document.addEventListener('click', (e) => {
+  const btnRegistrar = e.target.closest('.btn-registrar');
+  if (btnRegistrar) {
+    salvarInvestimento(
+      btnRegistrar.dataset.ticker, btnRegistrar.dataset.classe,
+      parseFloat(btnRegistrar.dataset.retorno), parseFloat(btnRegistrar.dataset.valor),
+    );
+    return;
+  }
+  const btnExcluir = e.target.closest('.btn-excluir');
+  if (btnExcluir) excluirInvestimento(btnExcluir.dataset.id);
+});
 </script>
 </body>
 </html>
