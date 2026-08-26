@@ -329,6 +329,12 @@ const RETORNOS_MENSAIS_REAIS = {
 };
 
 function fmtPct(v) { return v === null || v === undefined ? '—' : v.toFixed(2) + '%'; }
+
+const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+function nomeMesRelativo(dataBase, deslocamentoMeses) {
+  const d = new Date(dataBase.getFullYear(), dataBase.getMonth() + deslocamentoMeses, 1);
+  return `${NOMES_MESES[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
+}
 function fmtRS(v) { return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
 function mesesEntre(dataInicio, dataHorizonte) {
@@ -531,7 +537,7 @@ function renderChart(linhas, meses, budget) {
   const step = Math.max(1, Math.round(nMeses / 10));
   for (let i = 0; i <= nMeses; i += step) {
     const t = el('text', { x: x(i), y: H - padB + 18, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'middle' });
-    t.textContent = i;
+    t.textContent = nomeMesRelativo(DATA_REFERENCIA, i);
     svg.appendChild(t);
   }
 
@@ -600,7 +606,7 @@ function renderChartCompare(comp) {
   const step = Math.max(1, Math.round(nMeses / 10));
   for (let i = 0; i <= nMeses; i += step) {
     const t = el('text', { x: x(i), y: H - padB + 18, 'font-size': 11, fill: '#5b6270', 'text-anchor': 'middle' });
-    t.textContent = i;
+    t.textContent = nomeMesRelativo(DATA_REFERENCIA, i - nMeses);
     svg.appendChild(t);
   }
 
@@ -815,7 +821,7 @@ function renderGraficoGanhoMensal(svgId, ganhoMensalRs) {
   const step = Math.max(1, Math.round(n / 12));
   for (let i = 0; i < n; i += step) {
     const t = el('text', { x: x(i), y: H - padB + 14, 'font-size': 10, fill: '#5b6270', 'text-anchor': 'middle' });
-    t.textContent = i + 1;
+    t.textContent = nomeMesRelativo(DATA_REFERENCIA, i - (n - 1));
     svg.appendChild(t);
   }
 }

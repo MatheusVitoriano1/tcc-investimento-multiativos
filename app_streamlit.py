@@ -28,6 +28,13 @@ from recomendacao import (
 
 BASE_DIR = Path(__file__).parent / "dados"
 
+NOMES_MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+
+def nome_mes_relativo(data_base: pd.Timestamp, deslocamento_meses: int) -> str:
+    d = data_base + pd.DateOffset(months=deslocamento_meses)
+    return f"{NOMES_MESES[d.month - 1]}/{d.strftime('%y')}"
+
 st.set_page_config(page_title="Planejador de investimento multi-ativos", layout="wide")
 
 
@@ -184,7 +191,7 @@ else:
         sim = simular_trajetorias_mensais(
             budget_mensal, meses, linha["retorno_total_estimado_pct"], linha["volatilidade_mensal_pct"],
         )
-        eixo_x = list(range(1, len(sim["p50"]) + 1))
+        eixo_x = [nome_mes_relativo(data_referencia, k) for k in range(1, len(sim["p50"]) + 1)]
         fig.add_trace(go.Scatter(
             x=eixo_x + eixo_x[::-1], y=list(sim["p90"]) + list(sim["p10"])[::-1],
             fill="toself", fillcolor=cor, opacity=0.15, line=dict(width=0),
@@ -226,7 +233,10 @@ else:
         col3.metric("Diferença (erro do modelo)", f"{comparacao['erro_absoluto_pp']:.2f} p.p.")
 
         fig2 = go.Figure()
-        eixo_x2 = list(range(1, comparacao["meses_comparados"] + 1))
+        eixo_x2 = [
+            nome_mes_relativo(data_referencia, k - comparacao["meses_comparados"])
+            for k in range(1, comparacao["meses_comparados"] + 1)
+        ]
         fig2.add_trace(go.Scatter(
             x=eixo_x2, y=comparacao["trajetoria_real"], mode="lines+markers",
             name="Real (dados observados)", line=dict(color="#1a7f37"),
