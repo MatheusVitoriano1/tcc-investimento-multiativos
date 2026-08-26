@@ -110,7 +110,9 @@
   .card .v { font-size: 22px; font-weight: 700; }
   .card .d { font-size: 12px; color: var(--ok); margin-top: 4px; }
 
-  #chart-wrap, #chartCompare-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  #chart-wrap, #chartCompare-wrap, #barChart-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  tr.linha-destaque { background: var(--accent-bg); font-weight: 600; }
+  tr.linha-muted { color: var(--text-muted); }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; margin-top: 10px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
@@ -238,6 +240,10 @@
     <section>
       <h2 id="tituloRecomendacao"></h2>
       <div class="cards" id="cards"></div>
+      <p class="hint" id="comparativoHint"></p>
+      <div id="barChart-wrap">
+        <svg id="barChart" width="100%" viewBox="0 0 900 260" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
       <div class="table-wrap">
         <table id="tabelaRecomendacao"></table>
       </div>
@@ -465,13 +471,15 @@ function compararPrevistoReal(ticker, budget, mesesSolicitados) {
 function recomendar(faixaRisco, budget, dataHorizonte) {
   const meses = mesesEntre(DATA_REFERENCIA, dataHorizonte);
   if (meses === null) return null;
-  const elegiveis = Object.entries(FUNDOS).filter(([, f]) => f.faixaRisco === faixaRisco);
-  const linhas = elegiveis.map(([ticker, f]) => {
+  const linhas = Object.entries(FUNDOS).map(([ticker, f]) => {
     const proj = projetarRetorno(ticker, meses);
     const valorAcumulado = simularAportes(budget, meses, proj.retornoTotal);
-    return { ticker, ...f, ...proj, valorAcumulado, totalAportado: budget * Math.round(meses) };
+    return {
+      ticker, ...f, ...proj, valorAcumulado, totalAportado: budget * Math.round(meses),
+      destaque: f.faixaRisco === faixaRisco,
+    };
   });
-  linhas.sort((a, b) => b.retornoTotal - a.retornoTotal);
+  linhas.sort((a, b) => b.valorAcumulado - a.valorAcumulado);
   return { meses, linhas };
 }
 
@@ -499,7 +507,7 @@ function renderChart(linhas, meses, budget) {
   const W = 900, H = 380, padL = 65, padR = 20, padT = 20, padB = 40;
   const nMeses = Math.round(meses);
   const series = linhas.map(l => ({
-    ticker: l.ticker,
+    ticker: l.ticker, destaque: l.destaque,
     ...simularTrajetorias(budget, meses, l.retornoTotal, l.volatilidadeMensal),
   }));
   const totalAportado = budget * nMeses;
@@ -542,22 +550,31 @@ function renderChart(linhas, meses, budget) {
   }
 
   series.forEach(s => {
-    const cor = CORES[s.ticker] || '#666';
+    const cor = s.destaque ? (CORES[s.ticker] || '#666') : '#c7cbd1';
 
-    // faixa p10-p90
-    const pontosFaixa = s.p90.map((v, i) => `${x(i + 1)},${y(v)}`)
-      .concat(s.p10.slice().reverse().map((v, i) => `${x(nMeses - i)},${y(v)}`))
-      .join(' ');
-    svg.appendChild(el('polygon', { points: pontosFaixa, fill: cor, opacity: 0.13, stroke: 'none' }));
+    if (s.destaque) {
+      // faixa p10-p90 (só para os ativos em destaque, para não poluir o gráfico)
+      const pontosFaixa = s.p90.map((v, i) => `${x(i + 1)},${y(v)}`)
+        .concat(s.p10.slice().reverse().map((v, i) => `${x(nMeses - i)},${y(v)}`))
+        .join(' ');
+      svg.appendChild(el('polygon', { points: pontosFaixa, fill: cor, opacity: 0.13, stroke: 'none' }));
+    }
 
     // mediana
     const pontosMediana = s.p50.map((v, i) => `${x(i + 1)},${y(v)}`).join(' ');
-    svg.appendChild(el('polyline', { points: pontosMediana, fill: 'none', stroke: cor, 'stroke-width': 2.5 }));
-    s.p50.forEach((v, i) => {
-      svg.appendChild(el('circle', { cx: x(i + 1), cy: y(v), r: 2.5, fill: cor }));
-    });
+    svg.appendChild(el('polyline', {
+      points: pontosMediana, fill: 'none', stroke: cor,
+      'stroke-width': s.destaque ? 2.5 : 1.5, opacity: s.destaque ? 1 : 0.6,
+      ...(s.destaque ? {} : { 'stroke-dasharray': '3,3' }),
+    }));
+    if (s.destaque) {
+      s.p50.forEach((v, i) => {
+        svg.appendChild(el('circle', { cx: x(i + 1), cy: y(v), r: 2.5, fill: cor }));
+      });
+    }
 
     const item = document.createElement('span');
+    item.style.opacity = s.destaque ? '1' : '0.6';
     item.innerHTML = `<i style="background:${cor}"></i>${s.ticker}`;
     legend.appendChild(item);
   });
@@ -854,6 +871,52 @@ async function carregarMeusInvestimentos() {
   });
 }
 
+function renderBarChart(linhas) {
+  const svg = document.getElementById('barChart');
+  svg.innerHTML = '';
+  if (!linhas.length) return;
+
+  const ordenado = linhas.slice().sort((a, b) => b.valorAcumulado - a.valorAcumulado);
+  const n = ordenado.length;
+  const W = 900, padL = 145, padR = 175, padT = 10, padB = 10, alturaLinha = 44;
+  const H = padT + padB + n * alturaLinha;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const maxV = Math.max(...ordenado.map(l => l.valorAcumulado)) * 1.05 || 1;
+  const x = v => padL + (v / maxV) * (W - padL - padR);
+  const barH = 24;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) {
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  ordenado.forEach((l, i) => {
+    const cy = padT + i * alturaLinha + alturaLinha / 2;
+    const cor = l.destaque ? '#1f6feb' : '#c7cbd1';
+
+    const rotulo = el('text', {
+      x: padL - 10, y: cy + 4, 'font-size': 12.5, 'text-anchor': 'end',
+      fill: l.destaque ? '#1c1f26' : '#9aa1ac', 'font-weight': l.destaque ? 700 : 400,
+    });
+    rotulo.textContent = l.ticker;
+    svg.appendChild(rotulo);
+
+    svg.appendChild(el('rect', {
+      x: padL, y: cy - barH / 2, width: Math.max(0, x(l.valorAcumulado) - padL), height: barH, fill: cor, rx: 4,
+    }));
+
+    const valorTexto = el('text', {
+      x: x(l.valorAcumulado) + 10, y: cy + 4, 'font-size': 12.5,
+      fill: l.destaque ? '#1c1f26' : '#9aa1ac', 'font-weight': l.destaque ? 700 : 400,
+    });
+    valorTexto.textContent = `${fmtRS(l.valorAcumulado)}  (${l.retornoTotal >= 0 ? '+' : ''}${l.retornoTotal.toFixed(2)}%)`;
+    svg.appendChild(valorTexto);
+  });
+}
+
 function atualizar() {
   const faixaRisco = document.getElementById('faixaRisco').value;
   const budget = parseFloat(document.getElementById('budget').value) || 0;
@@ -866,8 +929,9 @@ function atualizar() {
 
   if (!dataHorizonte) {
     tituloEl.textContent = 'Selecione uma data-horizonte válida.';
-    cardsEl.innerHTML = ''; tabelaEl.innerHTML = '';
+    cardsEl.innerHTML = ''; tabelaEl.innerHTML = ''; document.getElementById('comparativoHint').textContent = '';
     document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    document.getElementById('barChart').innerHTML = '';
     document.getElementById('cardsComparacao').innerHTML = ''; renderChartCompare(null);
     return;
   }
@@ -875,8 +939,9 @@ function atualizar() {
   const resultado = recomendar(faixaRisco, budget, dataHorizonte);
   if (!resultado || resultado.meses === null) {
     tituloEl.textContent = 'A data-horizonte precisa ser posterior à última data disponível.';
-    cardsEl.innerHTML = ''; tabelaEl.innerHTML = '';
+    cardsEl.innerHTML = ''; tabelaEl.innerHTML = ''; document.getElementById('comparativoHint').textContent = '';
     document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    document.getElementById('barChart').innerHTML = '';
     document.getElementById('cardsComparacao').innerHTML = ''; renderChartCompare(null);
     return;
   }
@@ -884,35 +949,42 @@ function atualizar() {
   const { meses, linhas } = resultado;
   tituloEl.textContent = `Recomendação para faixa de risco '${faixaRisco}' (${meses.toFixed(1)} meses de horizonte)`;
 
-  if (!linhas.length) {
+  const elegiveis = linhas.filter(l => l.destaque);
+  if (!elegiveis.length) {
     cardsEl.innerHTML = '<div class="empty">Nenhum ativo elegível nessa faixa de risco.</div>';
-    tabelaEl.innerHTML = '';
+    tabelaEl.innerHTML = ''; document.getElementById('comparativoHint').textContent = '';
     document.getElementById('chart').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+    document.getElementById('barChart').innerHTML = '';
     document.getElementById('cardsComparacao').innerHTML = ''; renderChartCompare(null);
     return;
   }
 
-  const melhor = linhas[0];
+  const melhor = elegiveis.slice().sort((a, b) => b.valorAcumulado - a.valorAcumulado)[0];
   const rendimento = melhor.valorAcumulado - melhor.totalAportado;
   cardsEl.innerHTML = `
     <div class="card"><div class="k">Ativo recomendado</div><div class="v">${melhor.ticker}</div></div>
     <div class="card"><div class="k">Retorno total estimado</div><div class="v">${fmtPct(melhor.retornoTotal)}</div></div>
     <div class="card"><div class="k">Valor acumulado estimado</div><div class="v">${fmtRS(melhor.valorAcumulado)}</div><div class="d">+${fmtRS(rendimento)} de rendimento</div></div>
   `;
+  document.getElementById('comparativoHint').textContent =
+    `A tabela e os gráficos abaixo mostram todos os ativos — os da faixa '${faixaRisco}' aparecem em destaque, os demais continuam visíveis para comparação.`;
+
+  renderBarChart(linhas);
 
   tabelaEl.innerHTML = `
     <thead>
       <tr>
-        <th>Ticker</th><th>Classe</th><th>Volatilidade anualizada (%)</th>
+        <th>Ticker</th><th>Classe</th><th>Faixa de risco</th><th>Volatilidade anualizada (%)</th>
         <th>Retorno de renda (%)</th><th>Tendência de preço (%, especulativo)</th>
         <th>Retorno total (%)</th><th>Valor acumulado (R$)</th><th>Total aportado (R$)</th><th>Ação</th>
       </tr>
     </thead>
     <tbody>
       ${linhas.map(l => `
-        <tr>
+        <tr class="${l.destaque ? 'linha-destaque' : 'linha-muted'}">
           <td>${l.ticker}</td>
           <td>${l.classeAtivo}</td>
+          <td>${l.faixaRisco}</td>
           <td>${fmtPct(l.volatilidadeAnualizada)}</td>
           <td>${fmtPct(l.retornoRenda)}</td>
           <td>${fmtPct(l.retornoTendencia)}</td>

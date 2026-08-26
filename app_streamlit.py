@@ -141,10 +141,12 @@ recomendacao = recomendar(df, faixa_risco, budget_mensal, data_horizonte_ts)
 
 st.subheader(f"Recomendação para faixa de risco '{faixa_risco}' ({meses:.1f} meses de horizonte)")
 
-if recomendacao.empty:
+destaque_df = recomendacao[recomendacao["destaque"]]
+
+if destaque_df.empty:
     st.info("Nenhum ativo elegível nessa faixa de risco.")
 else:
-    melhor = recomendacao.iloc[0]
+    melhor = destaque_df.sort_values("valor_acumulado_estimado_rs", ascending=False).iloc[0]
     col1, col2, col3 = st.columns(3)
     col1.metric("Ativo recomendado", melhor["ticker"])
     col2.metric("Retorno total estimado", f"{melhor['retorno_total_estimado_pct']:.2f}%")
@@ -153,19 +155,57 @@ else:
         f"R$ {melhor['valor_acumulado_estimado_rs']:,.2f}",
         delta=f"R$ {melhor['valor_acumulado_estimado_rs'] - melhor['total_aportado_rs']:,.2f} de rendimento",
     )
+    st.caption(
+        f"A tabela e os gráficos abaixo mostram **todos os ativos**, não só os da faixa "
+        f"'{faixa_risco}' — os compatíveis aparecem em destaque, os demais continuam visíveis "
+        "para comparação."
+    )
+
+    st.markdown("**Comparativo entre todos os ativos**")
+    recomendacao_ordenada = recomendacao.sort_values("valor_acumulado_estimado_rs", ascending=True)
+    fig_barras = go.Figure(go.Bar(
+        x=recomendacao_ordenada["valor_acumulado_estimado_rs"],
+        y=recomendacao_ordenada["ticker"],
+        orientation="h",
+        marker_color=["#1f6feb" if d else "#c7cbd1" for d in recomendacao_ordenada["destaque"]],
+        text=[
+            f"R$ {v:,.2f}  ({p:+.2f}%)"
+            for v, p in zip(
+                recomendacao_ordenada["valor_acumulado_estimado_rs"],
+                recomendacao_ordenada["retorno_total_estimado_pct"],
+            )
+        ],
+        textposition="outside",
+        cliponaxis=False,
+    ))
+    fig_barras.update_layout(
+        xaxis_title="Valor acumulado estimado (R$)", yaxis_title="",
+        height=90 + 48 * len(recomendacao_ordenada), showlegend=False,
+        margin=dict(r=160),
+    )
+    st.plotly_chart(fig_barras, use_container_width=True)
+
+    destaque_mask = recomendacao["destaque"]
+    tabela_exibicao = recomendacao.rename(columns={
+        "ticker": "Ticker",
+        "classe_ativo": "Classe de ativo",
+        "volatilidade_anualizada_pct": "Volatilidade anualizada (%)",
+        "dy_medio_mensal_pct": "DY médio mensal (%)",
+        "faixa_risco": "Faixa de risco",
+        "retorno_renda_pct": "Retorno de renda no horizonte (%)",
+        "retorno_tendencia_preco_pct": "Tendência de preço no horizonte (%, especulativo)",
+        "retorno_total_estimado_pct": "Retorno total estimado (%)",
+        "valor_acumulado_estimado_rs": "Valor acumulado estimado (R$)",
+        "total_aportado_rs": "Total aportado (R$)",
+    }).drop(columns=["volatilidade_mensal_pct", "dy_desvio_mensal_pct", "destaque"])
+
+    def destacar_linha(row):
+        if destaque_mask.loc[row.name]:
+            return ["background-color: #eaf2ff; font-weight: 600;"] * len(row)
+        return ["color: #9aa1ac;"] * len(row)
 
     st.dataframe(
-        recomendacao.rename(columns={
-            "ticker": "Ticker",
-            "classe_ativo": "Classe de ativo",
-            "volatilidade_anualizada_pct": "Volatilidade anualizada (%)",
-            "dy_medio_mensal_pct": "DY médio mensal (%)",
-            "retorno_renda_pct": "Retorno de renda no horizonte (%)",
-            "retorno_tendencia_preco_pct": "Tendência de preço no horizonte (%, especulativo)",
-            "retorno_total_estimado_pct": "Retorno total estimado (%)",
-            "valor_acumulado_estimado_rs": "Valor acumulado estimado (R$)",
-            "total_aportado_rs": "Total aportado (R$)",
-        }).drop(columns=["volatilidade_mensal_pct", "dy_desvio_mensal_pct", "faixa_risco"]).style.format({
+        tabela_exibicao.style.apply(destacar_linha, axis=1).format({
             "Volatilidade anualizada (%)": "{:.2f}",
             "DY médio mensal (%)": "{:.2f}",
             "Retorno de renda no horizonte (%)": "{:.2f}",
@@ -187,18 +227,21 @@ else:
     cores = ["#1f6feb", "#e8590c", "#1a7f37", "#9c36b5", "#0ca678", "#c92a2a"]
     fig = go.Figure()
     for i, (_, linha) in enumerate(recomendacao.iterrows()):
-        cor = cores[i % len(cores)]
+        cor = cores[i % len(cores)] if linha["destaque"] else "#c7cbd1"
         sim = simular_trajetorias_mensais(
             budget_mensal, meses, linha["retorno_total_estimado_pct"], linha["volatilidade_mensal_pct"],
         )
         eixo_x = [nome_mes_relativo(data_referencia, k) for k in range(1, len(sim["p50"]) + 1)]
+        if linha["destaque"]:
+            fig.add_trace(go.Scatter(
+                x=eixo_x + eixo_x[::-1], y=list(sim["p90"]) + list(sim["p10"])[::-1],
+                fill="toself", fillcolor=cor, opacity=0.15, line=dict(width=0),
+                name=f"{linha['ticker']} (p10-p90)", showlegend=False, hoverinfo="skip",
+            ))
         fig.add_trace(go.Scatter(
-            x=eixo_x + eixo_x[::-1], y=list(sim["p90"]) + list(sim["p10"])[::-1],
-            fill="toself", fillcolor=cor, opacity=0.15, line=dict(width=0),
-            name=f"{linha['ticker']} (p10-p90)", showlegend=False, hoverinfo="skip",
-        ))
-        fig.add_trace(go.Scatter(
-            x=eixo_x, y=sim["p50"], mode="lines+markers", name=linha["ticker"], line=dict(color=cor),
+            x=eixo_x, y=sim["p50"], mode="lines+markers", name=linha["ticker"],
+            line=dict(color=cor, width=3 if linha["destaque"] else 1.5, dash=None if linha["destaque"] else "dot"),
+            opacity=1.0 if linha["destaque"] else 0.5,
         ))
     fig.add_hline(
         y=budget_mensal * int(round(meses)), line_dash="dot",

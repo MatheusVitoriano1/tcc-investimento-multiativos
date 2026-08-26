@@ -441,6 +441,39 @@ evidência direta para a discussão de resultados do TCC.
 - Testado com Playwright em ambos: valores batem entre Python e JS (conferido dígito a dígito para
   TESOURO_SELIC_2029 e BOVA11), sem erros de console.
 
+## Destaque em vez de filtro por faixa de risco (24/08, sessão seguinte)
+Usuário mostrou um print de outro site (simulador de investimentos) com um gráfico de barras
+horizontais comparando várias opções (Poupança, Tesouro Prefixado/Selic/IPCA, CDB, LCI/LCA), cada
+uma com valor final e "ganho adicional %", com a melhor opção destacada em cor viva e as demais em
+cinza — e pediu algo parecido: ao escolher a faixa de risco, os ativos compatíveis devem ficar em
+**destaque**, sem os outros serem **excluídos** da tela (diferente do comportamento anterior, que
+filtrava a tabela só para os ativos da faixa escolhida).
+
+**Mudança no core** (`recomendacao.py:recomendar()`): agora sempre calcula e retorna os 6 ativos
+(nunca filtra), com uma nova coluna booleana `destaque` (`faixa_risco == faixa_risco_escolhida`).
+Ordenação passou a ser por `valor_acumulado_estimado_rs` (antes era por retorno %, resultado
+idêntico já que é monotônico para orçamento/horizonte fixos, mas bate com a ordem visual do novo
+gráfico de barras). O "ativo recomendado" (cards do topo) continua sendo o melhor **dentro** da
+faixa escolhida — só a tabela e os gráficos passaram a mostrar todos os 6.
+
+**Novo gráfico de barras horizontais** (replicando o padrão do print): uma barra por ativo, ordenada
+por valor acumulado, com rótulo de valor final + retorno % ao lado. Ativos em destaque ficam azuis
+(`--accent`), os demais cinza (`--border`/`#c7cbd1`) — implementado como SVG à mão em
+`site_prototipo.html` (`renderBarChart`) e como `go.Bar` horizontal no `app_streamlit.py`.
+
+**Tabela de recomendação**: agora sempre lista os 6 ativos (nova coluna "Faixa de risco" para
+contexto), com as linhas em destaque tendo fundo azul claro (`--accent-bg`) e negrito, e as demais
+em cinza (`color: var(--text-muted)`) — implementado com classes CSS `linha-destaque`/`linha-muted`
+no site e com `Styler.apply` no Streamlit.
+
+**Gráfico de evolução (Monte Carlo)**: também passou a plotar as 6 linhas sempre (antes só as da
+faixa escolhida), mas os ativos fora da faixa ficam com linha fina, tracejada, cinza, sem a faixa de
+incerteza — evita poluir o gráfico enquanto ainda cumpre "não excluir os outros".
+
+Testado com Playwright nos dois apps, alternando faixa de risco (Baixo/Alto): destaque muda
+corretamente em tempo real, sem erros de console. Ainda **não commitado/publicado** — só rodou
+localmente até aqui.
+
 ## Título, problema e objetivos — rascunho (24/08)
 Criado `tema_objetivos_rascunho.md` com título provisório, problema de pesquisa, hipótese, objetivo
 geral (1 verbo no infinitivo) e 5 objetivos específicos, seguindo o checklist oficial da FAM. Título

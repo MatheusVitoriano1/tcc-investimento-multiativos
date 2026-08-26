@@ -272,17 +272,19 @@ def comparar_previsto_real(df: pd.DataFrame, ticker: str, budget_mensal: float, 
 def recomendar(
     df: pd.DataFrame, faixa_risco_escolhida: str, budget_mensal: float, data_horizonte: pd.Timestamp
 ) -> pd.DataFrame:
-    """Monta a tabela de recomendação: para cada ativo compatível com a faixa
-    de risco escolhida, calcula a projeção de retorno até a data-horizonte e o
-    valor acumulado simulado (determinístico) aportando budget_mensal todo mês."""
+    """Monta a tabela comparativa: calcula a projeção de retorno até a
+    data-horizonte e o valor acumulado simulado (determinístico) aportando
+    budget_mensal todo mês para TODOS os ativos, não só os da faixa de risco
+    escolhida — a coluna `destaque` marca quais combinam com a faixa
+    escolhida, para a interface realçar esses sem esconder os demais (o
+    usuário pode comparar as opções lado a lado antes de decidir)."""
     data_referencia = df["data"].max()
     meses = meses_entre(data_referencia, data_horizonte)
 
     perfis = calcular_perfis_risco(df)
-    elegiveis = perfis[perfis["faixa_risco"] == faixa_risco_escolhida]
 
     linhas = []
-    for _, perfil in elegiveis.iterrows():
+    for _, perfil in perfis.iterrows():
         projecao = projetar_retorno_horizonte(df, perfil["ticker"], meses)
         valor_acumulado = simular_aportes_mensais(budget_mensal, meses, projecao["retorno_total_estimado_pct"])
         linhas.append({
@@ -290,7 +292,8 @@ def recomendar(
             **projecao,
             "valor_acumulado_estimado_rs": valor_acumulado,
             "total_aportado_rs": budget_mensal * int(round(meses)),
+            "destaque": bool(perfil["faixa_risco"] == faixa_risco_escolhida),
         })
 
-    resultado = pd.DataFrame(linhas).sort_values("retorno_total_estimado_pct", ascending=False)
+    resultado = pd.DataFrame(linhas).sort_values("valor_acumulado_estimado_rs", ascending=False)
     return resultado.reset_index(drop=True)
