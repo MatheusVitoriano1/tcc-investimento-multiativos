@@ -234,8 +234,8 @@ def comparar_previsto_real(df: pd.DataFrame, ticker: str, budget_mensal: float, 
     walk-forward rigoroso — a projeção usa estatísticas (DY médio, CAGR de
     preço) calculadas sobre todo o histórico disponível até hoje, não
     apenas o que estaria disponível no início do período comparado. É uma
-    aproximação adequada para um protótipo de TCC, não uma avaliação de
-    performance de produção.
+    aproximação adequada para um protótipo experimental, não uma avaliação
+    de performance de produção.
     """
     serie_real = retorno_real_mensal(df, ticker)
     meses_comparados = min(int(round(meses_solicitados)), len(serie_real))

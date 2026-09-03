@@ -1,5 +1,5 @@
 """
-Script de coleta de dados para o TCC — Previsão de preços em múltiplas classes de ativos
+Script de coleta de dados — Projeção de Investimentos em múltiplas classes de ativos
 ================================================================================
 
 Fontes (todas gratuitas, oficiais, sem necessidade de token):

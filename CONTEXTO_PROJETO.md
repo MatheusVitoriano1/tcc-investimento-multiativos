@@ -1,11 +1,13 @@
-# Contexto do TCC — Previsão de preços e planejamento de investimento multi-ativos
+# Contexto do projeto — Projeção de Investimentos
 
 ## Sobre o projeto
-- TCC de Ciência da Computação (8º semestre), modalidade **Protótipo**, individual.
-- Tema (atualizado em 24/08): previsão de preços e planejamento de investimento entre 3 classes de
-  ativos brasileiros — FIIs de papel, ETF de ações e Tesouro Direto — usando análise de dados e
-  aprendizado de máquina. Começou só com FIIs; ver seção "Expansão para múltiplas classes de ativos".
-- Prazos: Checkpoint 16/10, AO1 19/10, AO2 02/11.
+- **Projeto pessoal** (TCC descontinuado em 26/08 — ver seção "TCC descontinuado" abaixo; as
+  seções anteriores a essa data ainda descrevem decisões tomadas na época em que era um TCC de
+  Ciência da Computação, mantidas aqui só como histórico).
+- Tema: previsão de preços e planejamento de investimento entre 3 classes de ativos brasileiros —
+  FIIs de papel, ETF de ações e Tesouro Direto — usando análise de dados e aprendizado de máquina.
+  Começou só com FIIs; ver seção "Expansão para múltiplas classes de ativos".
+- Ver `DOCUMENTACAO.md` para a documentação técnica organizada por tema (não cronológica).
 
 ## Decisões já tomadas
 - **FIIs escolhidos**: KNCR11, HGCR11, MXRF11 — todos do segmento papel/recebíveis (CRI),
@@ -480,12 +482,30 @@ geral (1 verbo no infinitivo) e 5 objetivos específicos, seguindo o checklist o
 provisório ainda **pendente de decisão do usuário** (2 alternativas mais curtas também no arquivo).
 Falta revisão do orientador.
 
-## Próximos passos do cronograma
-- EDA, modelagem, protótipo multi-ativos e deploy online (Netlify + Streamlit Cloud): concluído em
-  24/08 (adiantado).
-- Ainda falta: localizar o template oficial da FAM (Protótipo) no Canvas; usuário decidir o título
-  final; revisar rascunho de tema/objetivos com o orientador; redigir o texto do TCC no template
-  oficial; linkar o repositório Git local ao GitHub (usuário precisa rodar `gh auth login`
-  interativamente, se ainda não tiver feito).
-- Construir modelo/protótipo + redigir texto: até 14/10
-- Checkpoint: 16/10 | AO1: 19/10 | Correções: até 31/10 | AO2: 02/11
+## TCC descontinuado — projeto vira pessoal (26/08)
+Usuário decidiu descontinuar o TCC: o projeto segue como **iniciativa pessoal**, chamado
+**"Projeção de Investimentos"**, sem mais estar amarrado aos critérios/prazos/template da FAM —
+instrução explícita de não deixar esses requisitos serem mais um impeditivo para o desenvolvimento.
+
+Ações tomadas:
+- Título exibido no site e no app atualizado de "Planejador de investimento multi-ativos" para
+  **"Projeção de Investimentos"** (`<title>`, `<h1>`, `st.title`, `st.set_page_config`, e as menções
+  a "TCC"/"protótipo acadêmico" nos textos de limitação trocadas por linguagem neutra —
+  "este projeto"/"protótipo experimental").
+- Arquivos específicos da fase acadêmica movidos para `arquivo_tcc/` (mantidos como histórico, git
+  preserva a autoria/histórico via `git mv`): `checkpoint.html`, `tema_objetivos_rascunho.md`,
+  `Critérios obrigatórios.pdf`, `Manual_TCC_FAM_2026_2_Revisado.pdf`.
+- **Mantido por enquanto** (decisão do usuário): nome do repositório GitHub
+  (`tcc-investimento-multiativos`) e as URLs publicadas (`tccvitoriano.netlify.app`,
+  `tccvitoriano.streamlit.app`) — renomear isso quebraria links já compartilhados/testados; pode ser
+  revisitado mais pra frente com calma.
+- `DOCUMENTACAO.md` (documentação técnica por tema, não cronológica) e este arquivo atualizados para
+  refletir o novo enquadramento.
+
+## Próximos passos
+- Automatizar a coleta de dados (recorrente, não só manual) — hoje só roda manualmente.
+- Levar login/persistência (Supabase) também para o `app_streamlit.py` (hoje só o site tem).
+- Configurar SMTP próprio no Supabase se o número de usuários crescer (rate limit do plano
+  gratuito).
+- Validação cruzada temporal (walk-forward) e ajuste de hiperparâmetros do XGBoost — listado desde
+  cedo como "trabalho futuro", ainda não iniciado.

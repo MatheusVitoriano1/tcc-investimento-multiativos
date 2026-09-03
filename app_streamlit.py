@@ -1,5 +1,5 @@
 """
-App Streamlit — Planejador de investimento multi-ativos (protótipo de TCC)
+App Streamlit — Projeção de Investimentos
 ========================================================================
 
 Interface do protótipo: o usuário escolhe uma faixa de risco, um orçamento
@@ -35,7 +35,7 @@ def nome_mes_relativo(data_base: pd.Timestamp, deslocamento_meses: int) -> str:
     d = data_base + pd.DateOffset(months=deslocamento_meses)
     return f"{NOMES_MESES[d.month - 1]}/{d.strftime('%y')}"
 
-st.set_page_config(page_title="Planejador de investimento multi-ativos", layout="wide")
+st.set_page_config(page_title="Projeção de Investimentos", layout="wide")
 
 
 @st.cache_data
@@ -52,9 +52,9 @@ def carregar_resultados_modelos() -> pd.DataFrame | None:
 df = carregar_dados()
 data_referencia = df["data"].max()
 
-st.title("Planejador de investimento multi-ativos")
+st.title("Projeção de Investimentos")
 st.caption(
-    "Protótipo de TCC — recomendação entre 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), "
+    "Recomendação entre 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), "
     "1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em "
     f"dados históricos até {data_referencia.date()}."
 )
@@ -102,7 +102,7 @@ with st.sidebar:
     )
 
 st.warning(
-    "**Limitação importante**: a modelagem deste TCC mostrou que a previsão de preço de "
+    "**Limitação importante**: a modelagem deste projeto mostrou que a previsão de preço de "
     "curto prazo (Prophet e XGBoost) não supera de forma consistente um baseline de "
     "persistência ingênua para os ativos de mercado líquido (FIIs, ETF de ações) — ou seja, "
     "o preço se comporta perto de um passeio aleatório no dia a dia. A exceção é o **Tesouro "
@@ -111,7 +111,7 @@ st.warning(
     "histórico (só FIIs) e a tendência de preço é tratada como especulativa para FII/ETF. "
     "O gráfico de evolução mostra uma faixa de incerteza (Monte Carlo) baseada na "
     "volatilidade histórica real de cada ativo, não uma linha reta de juros compostos. "
-    "Isto é um protótipo acadêmico, não recomendação de investimento real."
+    "Isto é um protótipo experimental, não recomendação de investimento real."
 )
 
 perfis = calcular_perfis_risco(df)

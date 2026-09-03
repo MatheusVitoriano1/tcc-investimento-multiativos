@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planejador de investimento multi-ativos — Protótipo</title>
+<title>Projeção de Investimentos</title>
 <style>
   :root {
     --bg: #ffffff;
@@ -209,19 +209,19 @@
   </aside>
 
   <main>
-    <h1>Planejador de investimento multi-ativos</h1>
-    <p class="subtitle">Protótipo de TCC — recomendação entre 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em dados históricos até <span id="dataRef"></span>. Versão standalone, sem necessidade de servidor.</p>
+    <h1>Projeção de Investimentos</h1>
+    <p class="subtitle">Recomendação entre 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em dados históricos até <span id="dataRef"></span>. Versão standalone, sem necessidade de servidor.</p>
 
     <div class="callout">
       <strong class="label">Limitação importante</strong>
-      A modelagem deste TCC (Prophet e XGBoost, ver <code>resultados_modelos.csv</code>) mostrou que a
+      A modelagem deste projeto (Prophet e XGBoost, ver <code>resultados_modelos.csv</code>) mostrou que a
       previsão de preço de curto prazo não supera de forma consistente um baseline de persistência
       ingênua para os ativos de mercado líquido (FIIs, ETF de ações) — o preço se comporta perto de um
       passeio aleatório no dia a dia. A exceção é o <strong>Tesouro Selic</strong>, quase determinístico,
       onde o modelo bate a persistência com folga. Por isso a projeção de renda usa o dividend yield
       histórico (só FIIs) e a tendência de preço é tratada como especulativa para FII/ETF. O gráfico de
       evolução mostra uma faixa de incerteza (Monte Carlo) baseada na volatilidade histórica real de
-      cada ativo — não uma linha reta de juros compostos. Protótipo acadêmico, não recomendação de
+      cada ativo — não uma linha reta de juros compostos. Protótipo experimental, não recomendação de
       investimento real.
     </div>
 
