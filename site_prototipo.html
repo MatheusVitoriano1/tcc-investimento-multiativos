@@ -243,7 +243,7 @@
       <select id="faixaRisco">
         <option value="Baixo">Baixo (Renda Fixa)</option>
         <option value="Intermediário">Intermediário (FIIs)</option>
-        <option value="Alto">Alto (ETF de ações)</option>
+        <option value="Alto">Alto (ações e ETFs)</option>
       </select>
     </div>
     <div class="field">
@@ -259,7 +259,7 @@
 
   <main>
     <h1 data-brand="nome">Simulador de investimentos</h1>
-    <p class="subtitle">Simulação educacional que compara 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em dados históricos até <span id="dataRef"></span>.</p>
+    <p class="subtitle">Simulação educacional que compara Tesouro Direto, FIIs, ETFs e ações: os 6 ativos-base (KNCR11, HGCR11, MXRF11, BOVA11, Tesouro Selic e IPCA+, com dados até <span id="dataRef"></span>) e os que você adicionar em Mercado ao vivo, com dados históricos recentes.</p>
 
     <div class="callout">
       <strong class="label">Aviso importante</strong>
@@ -268,7 +268,7 @@
 
     <section id="secMercado">
       <h2>Mercado ao vivo <span class="badge" id="mercadoBadge">conectando…</span></h2>
-      <p class="hint">Cotações da B3 de ações e FIIs, com atraso de cerca de 15 minutos. Pesquise pelo código ou pelo nome, adicione à sua lista e clique em um ativo para ver seu risco e retorno no último ano.</p>
+      <p class="hint">Cotações da B3 de ações e FIIs, com atraso de cerca de 15 minutos. Pesquise pelo código ou pelo nome, adicione à sua lista e clique em um ativo para ver seu risco e retorno no último ano. Os ativos da lista entram automaticamente na simulação mais abaixo.</p>
       <div class="mercado-busca">
         <input id="mercadoBusca" list="mercadoSugestoes" placeholder="Ex.: PETR4, KNCR11, Itaú" autocomplete="off" maxlength="30">
         <datalist id="mercadoSugestoes"></datalist>
@@ -280,7 +280,7 @@
     </section>
 
     <section>
-      <h2>Perfil de risco dos ativos (3 classes: Renda Fixa, FII, ETF de ações)</h2>
+      <h2>Perfil de risco dos ativos</h2>
       <div class="table-wrap">
         <table>
           <thead>
@@ -442,6 +442,15 @@ const CORES = {
   KNCR11: '#2b2b2b', HGCR11: '#e8590c', MXRF11: '#1a7f37',
   BOVA11: '#9c36b5', TESOURO_SELIC_2029: '#0ca678', TESOURO_IPCA_2035: '#c92a2a',
 };
+const PALETA = ['#1f77b4', '#d6336c', '#f08c00', '#2f9e44', '#7048e8', '#0b7285', '#a61e4d', '#5c940d', '#e64980', '#364fc7'];
+const coresGeradas = {};
+function corDe(ticker) {
+  if (CORES[ticker]) return CORES[ticker];
+  if (!coresGeradas[ticker]) coresGeradas[ticker] = PALETA[Object.keys(coresGeradas).length % PALETA.length];
+  return coresGeradas[ticker];
+}
+const NOMES_CLASSE = { FII: 'FII', ETF_ACOES: 'ETF de ações', ACAO: 'Ação', BDR: 'BDR', 'Renda Fixa': 'Renda Fixa' };
+function nomeClasse(c) { return NOMES_CLASSE[c] || c; }
 // Retorno mensal REAL (não simulado) de cada ativo — preço + DY efetivamente
 // pago (FII) — um valor por mês, em ordem cronológica, exportado de
 // recomendacao.py:retorno_real_mensal(). Usado só na seção "Real vs. previsto".
@@ -469,10 +478,16 @@ function mesesEntre(dataInicio, dataHorizonte) {
   return dias / 30.44;
 }
 
+// Teto da tendência de preço: evita projetar para frente um ano excepcional (ex.: ação que
+// subiu 150% em 12 meses). Vale para todos os ativos; os 6 da base ficam dentro do limite.
+const LIMITE_TENDENCIA_ANUAL = 0.30;
 function projetarRetorno(ticker, meses) {
   const f = FUNDOS[ticker];
   const retornoRenda = f.classeAtivo === 'FII' ? (Math.pow(1 + f.dyMedioMensal / 100, meses) - 1) * 100 : 0;
-  const retornoTendencia = (Math.pow(1 + f.cagrMensal, meses) - 1) * 100;
+  const teto = Math.pow(1 + LIMITE_TENDENCIA_ANUAL, 1 / 12) - 1;
+  const piso = Math.pow(1 - LIMITE_TENDENCIA_ANUAL, 1 / 12) - 1;
+  const cagr = Math.min(Math.max(f.cagrMensal, piso), teto);
+  const retornoTendencia = (Math.pow(1 + cagr, meses) - 1) * 100;
   return { retornoRenda, retornoTendencia, retornoTotal: retornoRenda + retornoTendencia };
 }
 
@@ -608,7 +623,7 @@ function renderPerfis() {
   tbody.innerHTML = Object.entries(FUNDOS).map(([ticker, f]) => `
     <tr>
       <td>${ticker}</td>
-      <td>${f.classeAtivo}</td>
+      <td>${nomeClasse(f.classeAtivo)}</td>
       <td>${fmtPct(f.volatilidadeAnualizada)}</td>
       <td>${fmtPct(f.volatilidadeMensal)}</td>
       <td>${fmtPct(f.dyMedioMensal)}</td>
@@ -670,7 +685,7 @@ function renderChart(linhas, meses, budget) {
   }
 
   series.forEach(s => {
-    const cor = s.destaque ? (CORES[s.ticker] || '#666') : '#c7cbd1';
+    const cor = s.destaque ? corDe(s.ticker) : '#c7cbd1';
 
     if (s.destaque) {
       // faixa p10-p90 (só para os ativos em destaque, para não poluir o gráfico)
@@ -923,6 +938,7 @@ async function adicionarAtivo() {
   if (listaMercado.length >= 20) { statusMercado('Limite de 20 ativos na lista.'); return; }
   listaMercado.push(t); salvarListaMercado(); campo.value = '';
   conectarMercado();
+  sincronizarAtivosApi();
 }
 
 let temporizadorBusca = null;
@@ -964,6 +980,56 @@ async function analisarAtivo(ticker) {
   } catch (e) {
     box.innerHTML = '<p class="hint">API de cotações indisponível no momento.</p>';
   }
+}
+
+// ---- Ativos da API dentro do simulador -------------------------------------
+// Os 6 ativos-base vêm do pipeline (FUNDOS). Os demais da lista "Mercado ao vivo" são
+// analisados pela API e entram no mesmo cálculo. Classe -> faixa: FII = Intermediário;
+// ações, BDRs e ETFs = Alto (mesmo critério por classe usado no pipeline).
+
+function fundoDeAnalise(d) {
+  // FII: renda = dividendos e tendência = só variação da cota. Demais (ou sem dividendos):
+  // tendência = retorno total (já com proventos), sem renda separada — evita contar duas vezes.
+  const separa = d.classe_ativo === 'FII' && d.dy_medio_mensal != null && d.cagr_mensal_preco != null;
+  return {
+    classeAtivo: d.classe_ativo,
+    volatilidadeAnualizada: d.volatilidade_anualizada_pct,
+    volatilidadeMensal: d.volatilidade_mensal_pct,
+    dyMedioMensal: separa ? d.dy_medio_mensal : null,
+    faixaRisco: d.classe_ativo === 'FII' ? 'Intermediário' : 'Alto',
+    cagrMensal: separa ? d.cagr_mensal_preco : d.cagr_mensal_total,
+    ultimoFechamento: d.ultimo_fechamento,
+    fonte: 'API',
+  };
+}
+
+function atualizarOpcoesComparacao() {
+  const sel = document.getElementById('tickerComparacao');
+  const atual = sel.value;
+  sel.innerHTML = Object.keys(FUNDOS).map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  if (atual && FUNDOS[atual]) sel.value = atual;
+}
+
+async function sincronizarAtivosApi() {
+  let mudou = false;
+  Object.keys(FUNDOS).forEach(t => {
+    if (FUNDOS[t].fonte === 'API' && !listaMercado.includes(t)) { delete FUNDOS[t]; delete RETORNOS_MENSAIS_REAIS[t]; mudou = true; }
+  });
+  const novos = listaMercado.filter(t => !FUNDOS[t]);
+  const falhas = [];
+  await Promise.all(novos.map(async (t) => {
+    try {
+      const r = await fetch(`${BRAND.apiUrl}/analise/${encodeURIComponent(t)}?range=2y`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (!listaMercado.includes(t)) return;  // removido enquanto carregava
+      FUNDOS[t] = fundoDeAnalise(d);
+      RETORNOS_MENSAIS_REAIS[t] = d.retornos_mensais_pct || [];
+      mudou = true;
+    } catch (e) { falhas.push(t); }
+  }));
+  if (mudou) { renderPerfis(); atualizarOpcoesComparacao(); atualizar(); }
+  if (falhas.length) statusMercado('Não foi possível incluir na simulação: ' + falhas.join(', ') + ' (histórico indisponível ou API fora do ar).');
 }
 
 // ---- Captura de lead -------------------------------------------------------
@@ -1272,7 +1338,7 @@ function atualizar() {
       ${linhas.map(l => `
         <tr class="${l.destaque ? 'linha-destaque' : 'linha-muted'}">
           <td>${l.ticker}</td>
-          <td>${l.classeAtivo}</td>
+          <td>${nomeClasse(l.classeAtivo)}</td>
           <td>${l.faixaRisco}</td>
           <td>${fmtPct(l.volatilidadeAnualizada)}</td>
           <td>${fmtPct(l.retornoRenda)}</td>
@@ -1295,8 +1361,7 @@ function atualizar() {
 
 document.getElementById('dataRef').textContent = DATA_REFERENCIA.toLocaleDateString('pt-BR');
 renderPerfis();
-document.getElementById('tickerComparacao').innerHTML = Object.keys(FUNDOS)
-  .map(ticker => `<option value="${ticker}">${ticker}</option>`).join('');
+atualizarOpcoesComparacao();
 ['faixaRisco', 'budget', 'horizonte'].forEach(id => {
   document.getElementById(id).addEventListener('input', atualizar);
 });
@@ -1331,12 +1396,13 @@ document.getElementById('tabelaMercado').addEventListener('click', (e) => {
   const rem = e.target.closest('[data-remover]');
   if (rem) {
     listaMercado = listaMercado.filter(t => t !== rem.dataset.remover);
-    salvarListaMercado(); conectarMercado(); return;
+    salvarListaMercado(); conectarMercado(); sincronizarAtivosApi(); return;
   }
   const lin = e.target.closest('[data-analisar]');
   if (lin) analisarAtivo(lin.dataset.analisar);
 });
 conectarMercado();
+sincronizarAtivosApi();
 atualizarVisibilidadeAuth();
 document.getElementById('authSenha').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
 

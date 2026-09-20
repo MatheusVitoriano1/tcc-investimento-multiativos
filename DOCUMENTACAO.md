@@ -474,5 +474,7 @@ tempo real e calcular risco/retorno na hora, em vez de depender dos 6 ativos fix
   que usa outra janela). `dy_medio_mensal` não é calculado. O Yahoo não garante contrato: para produto
   comercial, contratar feed licenciado e adicionar como provedor. Netlify só serve estáticos, então a API
   precisa de hospedagem própria (ex.: Render, Fly.io, Railway) e `ALLOWED_ORIGINS` restrito ao site.
-- **Ainda não integrada** ao site/`recomendacao.py`: próximo passo é trocar as estatísticas fixas
-  (`FUNDOS` no HTML, CSVs no Python) por chamadas a `/analise` e `/cotacoes`.
+- **Integração**: o site usa `/cotacoes`, `/stream`, `/ativos` e `/analise` (painel Mercado ao vivo e
+  simulação). `/analise?range=2y` devolve também classe do ativo, dividend yield mensal, CAGR só da cota x
+  com proventos e retornos mensais reais. O `recomendacao.py` (app Streamlit) ainda não usa a API.
+  No site há um teto de ±30% ao ano para a tendência de preço; o Python ainda não tem esse teto.

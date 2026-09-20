@@ -201,10 +201,11 @@ def _simbolo_yahoo(ticker: str) -> str:
     return ticker if ticker.startswith("^") else f"{ticker}.SA"
 
 
-async def _yahoo_chart(ticker: str, rng: str, intervalo: str) -> dict:
-    resp = await _http.get(
-        f"{YAHOO_URL}/{_simbolo_yahoo(ticker)}", params={"range": rng, "interval": intervalo}
-    )
+async def _yahoo_chart(ticker: str, rng: str, intervalo: str, eventos: Optional[str] = None) -> dict:
+    params = {"range": rng, "interval": intervalo}
+    if eventos:
+        params["events"] = eventos
+    resp = await _http.get(f"{YAHOO_URL}/{_simbolo_yahoo(ticker)}", params=params)
     if resp.status_code == 404:
         raise ErroProvedor("ticker não encontrado")
     try:
@@ -256,6 +257,82 @@ async def _yahoo_historico(ticker: str, rng: str, intervalo: str) -> list[dict]:
     if not saida:
         raise ErroProvedor("Yahoo sem histórico para este ativo")
     return saida
+
+
+# ---------------------------------------------------------------- dados complementares
+
+def _classe_por_sufixo(ticker: str) -> str:
+    """Reserva quando a lista de ativos não responde: adivinha pela terminação do código."""
+    m = re.search(r"([0-9]{1,2})[A-Z]?$", ticker)
+    fim = m.group(1) if m else ""
+    if fim == "11":
+        return "FII"  # pode ser FII, ETF ou unit: sem a lista, assume FII
+    if fim in {"32", "33", "34", "35", "39"}:
+        return "BDR"
+    return "ACAO"
+
+
+async def obter_classe_ativo(ticker: str) -> str:
+    """FII, ETF_ACOES, ACAO ou BDR, a partir da lista da brapi (funciona sem token)."""
+    chave = f"classe:{ticker}"
+    if (c := cache.obter(chave)) is not None:
+        return c
+    classe = None
+    try:
+        resp = await _http.get(f"{BRAPI_URL}/quote/list", params={"search": ticker, "limit": 5}, headers=_headers_brapi())
+        for a in resp.json().get("stocks", []):
+            if a.get("stock") == ticker:
+                tipo, sub = a.get("type"), a.get("subType")
+                if tipo == "fund":
+                    classe = "FII" if sub == "fii" else "ETF_ACOES"
+                elif tipo == "bdr":
+                    classe = "BDR"
+                elif tipo == "stock":
+                    classe = "ACAO"
+                break
+    except (httpx.HTTPError, ValueError):
+        pass
+    classe = classe or _classe_por_sufixo(ticker)
+    cache.guardar(chave, classe, 86400)
+    return classe
+
+
+async def obter_dy_mensal(ticker: str) -> Optional[float]:
+    """Dividend yield médio mensal (%) dos últimos 12 meses: proventos somados / preço médio / 12.
+
+    Vem do Yahoo (eventos de dividendos). Nulo se indisponível ou se não houve proventos.
+    """
+    chave = f"dy:{ticker}"
+    if (c := cache.obter(chave)) is not None:
+        return c or None
+    dy: Optional[float] = None
+    try:
+        r = await _yahoo_chart(ticker, "1y", "1d", eventos="div")
+        divs = (r.get("events") or {}).get("dividends") or {}
+        fechos = [x for x in ((r.get("indicators", {}).get("quote") or [{}])[0].get("close") or []) if x]
+        if divs and fechos:
+            total = sum(d.get("amount", 0) for d in divs.values())
+            dy = round(total / (sum(fechos) / len(fechos)) / 12 * 100, 4)
+    except (ErroProvedor, httpx.HTTPError, KeyError, ValueError):
+        pass
+    cache.guardar(chave, dy or 0, TTL_HISTORICO)
+    return dy
+
+
+def retornos_mensais(historico: list[dict]) -> list[float]:
+    """Retorno % mês a mês entre fechamentos de fim de mês (ajustados por proventos).
+
+    O mês corrente, ainda incompleto, fica de fora.
+    """
+    ultimo: dict[tuple[int, int], float] = {}
+    for p in historico:  # em ordem cronológica: o último ponto de cada mês prevalece
+        d = datetime.fromisoformat(p["data"]).astimezone(BRT)
+        ultimo[(d.year, d.month)] = p.get("fechamento_ajustado") or p["fechamento"]
+    chaves = sorted(ultimo)
+    hoje = datetime.now(BRT)
+    if chaves and chaves[-1] == (hoje.year, hoje.month):
+        chaves = chaves[:-1]
+    return [round((ultimo[b] / ultimo[a] - 1) * 100, 6) for a, b in zip(chaves, chaves[1:])]
 
 
 # ---------------------------------------------------------------- camada de serviço
@@ -315,8 +392,8 @@ def calcular_metricas(historico: list[dict]) -> dict:
     """Risco/retorno a partir de fechamentos diários (ajustados por proventos quando existem).
 
     Nomes compatíveis com as estatísticas do simulador (volatilidade, CAGR mensal).
-    Para FIIs o retorno ajustado já embute os proventos; `dy_medio_mensal` fica nulo porque
-    nenhuma fonte usada aqui entrega proventos por período de forma confiável.
+    O retorno ajustado embute os proventos. `dy_medio_mensal` é preenchido pelo endpoint
+    (fonte de dividendos à parte) e fica nulo aqui.
     """
     precos = [p.get("fechamento_ajustado") or p["fechamento"] for p in historico]
     brutos = [p["fechamento"] for p in historico]
@@ -336,13 +413,18 @@ def calcular_metricas(historico: list[dict]) -> dict:
     def mm(n: int) -> Optional[float]:
         return round(sum(brutos[-n:]) / n, 4) if len(brutos) >= n else None
 
+    retorno_preco = brutos[-1] / brutos[0] - 1
     return {
         "pregoes_analisados": len(precos),
         "ultimo_fechamento": brutos[-1],
         "volatilidade_anualizada_pct": round(desvio * math.sqrt(252) * 100, 4),
         "volatilidade_mensal_pct": round(desvio * math.sqrt(21) * 100, 4),
         "retorno_periodo_pct": round(retorno_total * 100, 4),
+        # cagr_mensal = retorno TOTAL (com proventos, preço ajustado); _preco = só variação da cota.
         "cagr_mensal": round((1 + retorno_total) ** (1 / meses) - 1, 6) if meses > 0 else None,
+        "cagr_mensal_total": round((1 + retorno_total) ** (1 / meses) - 1, 6) if meses > 0 else None,
+        "cagr_mensal_preco": round((1 + retorno_preco) ** (1 / meses) - 1, 6) if meses > 0 and retorno_preco > -1 else None,
+        "retornos_mensais_pct": retornos_mensais(historico),
         "max_drawdown_pct": round(max_dd * 100, 4),
         "media_movel_20": mm(20), "media_movel_50": mm(50), "media_movel_200": mm(200),
         "dy_medio_mensal": None,
@@ -401,12 +483,19 @@ async def historico(ticker: str, range: str = "1y", intervalo: str = "1d"):
 
 @app.get("/analise/{ticker}")
 async def analise(ticker: str, range: str = "1y"):
-    """Métricas de risco/retorno calculadas na hora para qualquer ativo (base da recomendação)."""
+    """Métricas de risco/retorno, classe, dividendos e retornos mensais reais de qualquer ativo.
+
+    É o que o simulador do site consome para incluir ativos além dos 6 do pipeline.
+    """
     if range not in {"6mo", "1y", "2y", "5y"}:
         raise HTTPException(400, "range deve ser 6mo, 1y, 2y ou 5y.")
     t = _normalizar_ticker(ticker)
-    dados, fonte = await obter_historico(t, range, "1d")
-    return {"ticker": t, "range": range, "fonte": fonte, **calcular_metricas(dados)}
+    (dados, fonte), classe, dy = await asyncio.gather(
+        obter_historico(t, range, "1d"), obter_classe_ativo(t), obter_dy_mensal(t)
+    )
+    metricas = calcular_metricas(dados)
+    metricas["dy_medio_mensal"] = dy
+    return {"ticker": t, "range": range, "fonte": fonte, "classe_ativo": classe, **metricas}
 
 
 @app.get("/ativos")

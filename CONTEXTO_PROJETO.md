@@ -628,6 +628,23 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
 - **Ainda não feito**: o simulador/recomendação continua usando os 6 ativos fixos do pipeline; a troca
   por dados da API (para qualquer ativo) é o próximo passo dessa frente. API ainda sem hospedagem.
 
+### Simulador alimentado pela API (20/09, branch `demo-white-label`)
+- Os ativos da lista "Mercado ao vivo" entram automaticamente no simulador (perfil de risco, tabela,
+  barras, Monte Carlo e "Projeção x resultado real"), além dos 6 ativos-base do pipeline, que seguem
+  com os números do pipeline (Tesouro não existe na API de B3). Remover da lista tira da simulação.
+- `/analise` da API passou a devolver `classe_ativo` (FII, ETF_ACOES, ACAO, BDR), `dy_medio_mensal`
+  (dividendos de 12 meses / preço médio / 12, via Yahoo), `cagr_mensal_preco` (só cota) x
+  `cagr_mensal_total` (com proventos) e `retornos_mensais_pct` (mês a mês, mês corrente excluído).
+- Regras para ativos da API: FII = faixa Intermediário, com renda = dividendos e tendência = só cota;
+  ação/BDR/ETF = faixa Alto, tendência = retorno total e sem renda separada (não contar proventos 2x).
+- **Novo teto de tendência: ±30% ao ano** (`LIMITE_TENDENCIA_ANUAL`) em `projetarRetorno`, para não
+  extrapolar um ano excepcional (ex.: PETR4 subiu bem mais que 30% ao ano e ficou limitada). Os 6 ativos-base
+  não são afetados. `recomendacao.py` (app Streamlit pessoal) NÃO tem esse teto ainda.
+- Data de referência do simulador segue 24/08 (base), enquanto os ativos da API usam dados até o dia.
+- Testado com a API real: PETR4, VALE3, ITUB4, HGLG11, WEGE3 entram e saem; ticker sem histórico mostra
+  aviso; sem erros de console. Sem a API no ar, o simulador continua com os 6 ativos-base.
+- Ainda pendente: hospedar a API, token da brapi, e confirmar atualização ao vivo com pregão aberto.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com
