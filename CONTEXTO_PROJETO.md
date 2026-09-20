@@ -674,6 +674,18 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
   **Volume** é aproximado em R$ (quantidade x preço médio do dia), pois as fontes trazem só a quantidade.
 - `Exemplo.png` fica só como referência local (não versionado).
 
+### Inicialização automática da API (20/09, branch `demo-white-label`)
+- Problema: o site só mostrava dados ao vivo se a API estivesse rodando, e ela era um processo manual.
+- `iniciar.bat` (raiz): sobe a API em janela minimizada, se já não estiver no ar, e abre o site em
+  `http://localhost:8000/`. `parar_api.bat` encerra. A API agora serve o próprio site em `/`, então
+  a URL da API é a mesma origem (`BRAND.apiUrl` detecta localhost sozinho).
+- A API lê `BRAPI_TOKEN` de um `.env` local na raiz, **ignorado pelo git** (`.gitignore`). Foi criado um
+  `.env` com a chave que o usuário passou; `.env.example` mostra o formato. Cuidado: a chave já apareceu
+  no chat — gerar outra na brapi antes de hospedar.
+- Se a API cair ou ainda não estiver no ar, o site mostra "sem conexão", reconecta sozinho quando ela
+  volta (sem recarregar) e recarrega os ativos na simulação. Testado.
+- Para abrir com o Windows: colocar um atalho do `iniciar.bat` na pasta de Inicialização (Win+R, `shell:startup`).
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com

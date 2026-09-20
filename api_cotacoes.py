@@ -15,12 +15,14 @@ Fontes de dados (provedores), na ordem de tentativa:
 Os preços dos provedores gratuitos têm atraso (tipicamente ~15 min): é "quase tempo real", não
 tick a tick. O campo `atualizado_em` de cada cotação mostra o instante do dado.
 
-Executar (a partir da raiz do projeto, com o venv ativo):
+Executar: dê dois cliques em `iniciar.bat` (sobe a API e abre o site em http://localhost:8000).
+Ou, manualmente, a partir da raiz do projeto com o venv ativo:
     pip install -r requirements-api.txt
     uvicorn api_cotacoes:app --reload --port 8000
 Documentação interativa: http://localhost:8000/docs
 
-Variáveis de ambiente (nunca versionar o token):
+Configuração: variáveis de ambiente ou um arquivo `.env` na raiz do projeto (ignorado pelo git;
+veja `.env.example`). Nunca versionar o token:
     BRAPI_TOKEN        token da brapi.dev (opcional, mas necessário para todos os tickers)
     ALLOWED_ORIGINS    origens CORS separadas por vírgula (padrão "*", restrinja em produção)
 """
@@ -34,13 +36,35 @@ import re
 import time
 from collections import deque
 from contextlib import asynccontextmanager
+from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
+
+PASTA = Path(__file__).resolve().parent
+
+
+def _carregar_env() -> None:
+    """Lê variáveis de um arquivo `.env` ao lado deste arquivo (fora do git), sem dependências.
+
+    Variáveis já definidas no ambiente têm prioridade. Formato: CHAVE=valor, uma por linha.
+    """
+    arq = PASTA / ".env"
+    if not arq.is_file():
+        return
+    for linha in arq.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith("#") or "=" not in linha:
+            continue
+        chave, valor = linha.split("=", 1)
+        os.environ.setdefault(chave.strip(), valor.strip().strip('"').strip("'"))
+
+
+_carregar_env()
 
 BRAPI_URL = "https://brapi.dev/api"
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
@@ -487,6 +511,15 @@ def calcular_metricas(historico: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------- endpoints
+
+@app.get("/", include_in_schema=False)
+async def pagina_inicial():
+    """Serve o próprio site: abrir http://localhost:8000 já traz a API no mesmo endereço."""
+    arq = PASTA / "site_prototipo.html"
+    if not arq.is_file():
+        raise HTTPException(404, "site_prototipo.html não encontrado ao lado da API.")
+    return FileResponse(arq, media_type="text/html; charset=utf-8")
+
 
 @app.get("/saude")
 async def saude():

@@ -440,7 +440,7 @@ const BRAND = {
     primariaClara: '#fff6cc',  // fundo de linhas em destaque
   },
   // Endereço da API de cotações (api_cotacoes.py). Em produção, trocar pela URL hospedada.
-  apiUrl: 'http://localhost:8000',
+  apiUrl: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? location.origin : 'http://localhost:8000',
   textos: {
     avisoImportante: 'Esta é uma simulação educacional, feita com dados históricos. Ela não é recomendação de investimento personalizada nem consultoria de valores mobiliários, e rentabilidade passada não garante resultados futuros. Os valores são estimativas: no dia a dia, os preços de FIIs e de ações são muito difíceis de prever, por isso o gráfico mostra uma faixa de cenários possíveis e não uma linha única. Já a renda fixa pós-fixada, como o Tesouro Selic, tem resultado bem mais previsível. Para decidir onde investir, converse com um profissional habilitado.',
     rodape: 'Conteúdo educacional. Dados de fontes públicas (B3, CVM e Tesouro Transparente), sujeitos a defasagem.',
@@ -976,6 +976,7 @@ function conectarMercado() {
   definirBadge(false, 'conectando…');
   const src = new EventSource(`${BRAND.apiUrl}/stream?tickers=${encodeURIComponent(listaMercado.join(','))}&intervalo=10`);
   fonteEventos = src;
+  src.onopen = () => { statusMercado(''); sincronizarAtivosApi(); };  // API voltou: recarrega tudo sozinho
   src.addEventListener('cotacoes', (ev) => {
     let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
     d.cotacoes.forEach(c => { cotacoesMercado[c.ticker] = c; });
@@ -989,7 +990,7 @@ function conectarMercado() {
   });
   src.onerror = () => {
     definirBadge(false, 'sem conexão');
-    statusMercado('Não foi possível conectar à API de cotações. Verifique se ela está no ar; tentando reconectar automaticamente.');
+    statusMercado('API de cotações fora do ar. Para iniciá-la, execute o arquivo iniciar.bat na pasta do projeto; o site reconecta sozinho em seguida.');
   };
 }
 

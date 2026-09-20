@@ -458,8 +458,10 @@ Sem ordem de prioridade fixa:
 Serviço FastAPI independente do app e do pipeline, para acompanhar **qualquer ativo da B3** quase em
 tempo real e calcular risco/retorno na hora, em vez de depender dos 6 ativos fixos dos CSVs.
 
-- **Rodar**: `pip install -r requirements-api.txt` e `uvicorn api_cotacoes:app --reload --port 8000`.
-  Documentação interativa em `/docs`. Dependências em arquivo próprio (`requirements-api.txt`) para não
+- **Rodar**: dois cliques em `iniciar.bat` (sobe a API e abre o site em `http://localhost:8000`;
+  `parar_api.bat` encerra). Manualmente: `pip install -r requirements-api.txt` e
+  `uvicorn api_cotacoes:app --reload --port 8000`. Documentação interativa em `/docs`. O token da brapi
+  vai em `.env` (ignorado pelo git; modelo em `.env.example`). Dependências em arquivo próprio (`requirements-api.txt`) para não
   engordar o app nem o pipeline.
 - **Endpoints**: `/cotacoes?tickers=A,B` (lote, até 50), `/cotacao/{ticker}`, `/historico/{ticker}`,
   `/analise/{ticker}` (volatilidade, retorno do período, CAGR mensal, drawdown máximo, médias móveis),

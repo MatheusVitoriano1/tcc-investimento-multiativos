@@ -8,3 +8,6 @@ dados/tesouro_raw/
 
 # Logs locais
 *.log
+
+# Segredos locais (chave da brapi etc.) - nunca versionar
+.env
