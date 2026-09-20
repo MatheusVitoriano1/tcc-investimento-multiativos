@@ -502,10 +502,85 @@ Ações tomadas:
 - `DOCUMENTACAO.md` (documentação técnica por tema, não cronológica) e este arquivo atualizados para
   refletir o novo enquadramento.
 
+## Pivô: de acompanhamento pessoal para produto white-label de geração de leads (20/09)
+Usuário decidiu mudar o objetivo do projeto: em vez de ferramenta pessoal de acompanhamento de
+investimentos, o site passa a ser pensado como **produto a ser vendido/licenciado para uma empresa
+do ramo de investimentos** (modelo XP Inc — corretora/assessoria buscando captação de clientes),
+com o simulador de projeção servindo de isca de geração de leads. Decisões tomadas com o usuário:
+
+- **Modelo de negócio: template white-label**, não um site sob medida para um comprador já
+  definido. O produto deve ser demonstrável a várias corretoras/assessorias em potencial (marca e
+  cores fictícias/neutras, fáceis de reskinar), e customizado de fato só depois que houver um
+  comprador concreto.
+- **Centro do produto: o simulador como isca de lead**, não um dashboard de autoatendimento. A
+  proteção/Monte Carlo continua sendo o diferencial de engajamento, mas a lógica de conversão muda:
+  o objetivo passa a ser capturar contato (nome, e-mail, telefone) e qualificar o lead para um
+  consultor humano da empresa compradora — não deixar o usuário "se virar sozinho" com o próprio
+  simulador. A funcionalidade atual de conta/login/"Meus investimentos" (Supabase) deixa de ser o
+  fluxo principal e vira um possível upsell (portal do cliente) a considerar depois, não o objetivo
+  do primeiro momento.
+- **Enquadramento legal: conservador por padrão.** Como ainda não há comprador definido (não se sabe
+  se a empresa-alvo tem registro CVM para dar recomendação de investimento), o site deve se
+  posicionar como **simulação/projeção educacional**, nunca como recomendação personalizada — evita
+  o produto esbarrar em exigências de consultor de valores mobiliários enquanto é só material de
+  demonstração comercial. Revisar esse enquadramento assim que houver um comprador real: se ele for
+  licenciado, pode-se reposicionar trechos do texto como recomendação de fato.
+
+### Implicações práticas (o que muda na implementação)
+1. **Textos e disclaimers**: revisar toda a cópia do site para deixar explícito "projeção
+   ilustrativa, não é recomendação de investimento personalizada, não constitui consultoria de
+   valores mobiliários" — inclusive perto do botão de captura de lead, não só num rodapé.
+2. **Funil de captura de lead**: adicionar um formulário de contato (nome/e-mail/telefone, com
+   consentimento LGPD explícito) no ponto de maior intenção — ex. logo após o usuário ver o
+   resultado da simulação ("quer uma recomendação personalizada com um especialista? deixe seu
+   contato"). Precisa de uma tabela nova no Supabase (`leads`, separada de `investimentos`) e,
+   idealmente, uma notificação (e-mail/webhook) para a equipe comercial quando um lead novo entra —
+   ainda não implementado.
+3. **Marca configurável (white-label de verdade)**: extrair nome da empresa, logo, paleta de cores
+   e CTA de contato (telefone/WhatsApp) para um único ponto de configuração (objeto JS/JSON), em vez
+   de strings espalhadas pelo HTML — hoje `site_prototipo.html` já usa variáveis CSS para cor, mas
+   texto/nome ainda estão hardcoded. Isso é o que permite reskinar rápido para cada empresa em
+   reuniões de venda.
+4. **Site institucional além do simulador**: adicionar seções de marketing que hoje não existem —
+   hero/proposta de valor, "como funciona", prova social (placeholder), e uma página ou seção de
+   captura de lead que não dependa do usuário terminar o fluxo inteiro do simulador.
+5. **Métricas de funil**: para vender o produto, ajuda ter (mesmo que básico) tracking de conversão
+   — quantos abrem o formulário de perfil, quantos veem o resultado, quantos viram lead. Hoje não há
+   nenhum analytics implementado.
+6. **Separar identidade pessoal da identidade comercial**: o repositório (`tcc-investimento-
+   multiativos`) e os domínios (`tccvitoriano.netlify.app`/`tccvitoriano.streamlit.app`) têm nome
+   pessoal e não devem ser o que se mostra a um comprador em potencial. Recomendação: manter o
+   projeto pessoal como está (não quebrar o que já funciona) e criar uma cópia/fork com nome de
+   marca neutro fictício para servir de demo comercial — ainda **não feito**, pendente de decisão do
+   usuário sobre nome fictício e se quer um repo separado ou uma branch.
+
+### Em aberto (decidir quando houver um comprador ou mais clareza)
+- Nome fictício da marca de demonstração e paleta visual a usar no material de venda.
+- Se o motor de ML de 6 ativos deve ser mantido como está para a demo ou simplificado (menos ativos,
+  mais foco na experiência de conversão do que na sofisticação estatística) — o achado de "mercado
+  eficiente" é honesto tecnicamente, mas precisa de cuidado na forma como é comunicado num contexto
+  de venda (não pode soar como "o modelo não funciona").
+- Ferramenta de CRM/e-mail para onde os leads capturados devem ir (ex. RD Station, HubSpot, ou só
+  e-mail simples) — comum no setor de investimentos brasileiro, mas ainda não escolhido.
+- Se vale reativar a confirmação de e-mail no Supabase Auth (hoje desativada) quando o fluxo deixar
+  de ser só demonstração interna.
+
 ## Próximos passos
+### Relacionados ao pivô comercial (prioridade atual)
+- Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com
+  consentimento LGPD.
+- Extrair marca/cores/textos institucionais para um ponto único de configuração (base do
+  white-label).
+- Revisar toda a cópia do site com o enquadramento "simulação educacional, não recomendação".
+- Criar a versão de demonstração comercial com marca fictícia, separada da identidade pessoal atual.
+- Adicionar seções institucionais de marketing (proposta de valor, como funciona, prova social) e
+  tracking básico de funil.
+
+### Backlog técnico herdado (ainda válido, prioridade menor por ora)
 - Automatizar a coleta de dados (recorrente, não só manual) — hoje só roda manualmente.
-- Levar login/persistência (Supabase) também para o `app_streamlit.py` (hoje só o site tem).
-- Configurar SMTP próprio no Supabase se o número de usuários crescer (rate limit do plano
+- Levar login/persistência (Supabase) também para o `app_streamlit.py` (hoje só o site tem) — reavaliar
+  se ainda faz sentido no modelo de lead-gen ou só no eventual portal do cliente pós-venda.
+- Configurar SMTP próprio no Supabase se o número de usuários/leads crescer (rate limit do plano
   gratuito).
 - Validação cruzada temporal (walk-forward) e ajuste de hiperparâmetros do XGBoost — listado desde
   cedo como "trabalho futuro", ainda não iniciado.
