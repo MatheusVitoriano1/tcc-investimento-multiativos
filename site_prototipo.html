@@ -859,7 +859,7 @@ function atualizarVisibilidadeAuth() {
 // ---- Mercado ao vivo (API de cotações) ------------------------------------
 
 const LISTA_PADRAO = ['PETR4', 'VALE3', 'ITUB4', 'BOVA11', 'KNCR11', 'HGLG11'];
-const TICKER_VALIDO = /^[A-Z]{4}[0-9]{1,2}[A-Z]?$/;
+const TICKER_VALIDO = /^[A-Z][A-Z0-9]{3}[0-9]{1,2}[A-Z]?$/;
 let listaMercado = carregarListaMercado();
 let cotacoesMercado = {};
 let fonteEventos = null;

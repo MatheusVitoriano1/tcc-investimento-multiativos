@@ -645,6 +645,20 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
   aviso; sem erros de console. Sem a API no ar, o simulador continua com os 6 ativos-base.
 - Ainda pendente: hospedar a API, token da brapi, e confirmar atualização ao vivo com pregão aberto.
 
+### Token da brapi e limites do plano gratuito (20/09, branch `demo-white-label`)
+- Usuário criou chave na brapi (plano **gratuito**) e a passou no chat para teste; foi usada só como
+  variável de ambiente de processos de teste, **não gravada em nenhum arquivo**. Como ela apareceu no
+  chat, o ideal é **gerar outra no painel da brapi** antes de hospedar e cadastrar a nova como
+  `BRAPI_TOKEN` no serviço de hospedagem.
+- Limites do plano gratuito (medidos): 1 ativo por requisição, 20 requisições por minuto, 1 simultânea,
+  histórico só até 3 meses (2y/5y exigem plano pago). A API foi adaptada: aprende o tamanho do lote do
+  erro da brapi, serializa chamadas, limita a 18/min e usa o Yahoo quando o limite estoura; cotação da
+  brapi fica em cache 60 s quando o lote é 1. Resultado: cotações da brapi para os primeiros ativos de
+  cada minuto e o resto do Yahoo. O histórico para análise continua vindo do Yahoo no plano gratuito.
+- Corrigido o filtro de códigos, que recusava B3SA3 (aceita letra/número nas posições 2 a 4).
+- Para produto de verdade, o plano gratuito não sustenta muitos usuários/ativos ao vivo: avaliar plano
+  pago da brapi (Startup: 10 ativos por requisição) ou feed licenciado.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com

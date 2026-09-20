@@ -6,6 +6,8 @@ ativo listado na B3, calculadas na hora — em vez dos 6 ativos fixos do pipelin
 Fontes de dados (provedores), na ordem de tentativa:
   1. brapi.dev  — precisa de token (variável BRAPI_TOKEN) para todos os tickers; sem token só
                   PETR4, VALE3, ITUB4 e MGLU3 respondem. A lista/busca de ativos funciona sem token.
+                  Plano gratuito: 1 ativo por requisição e 20 requisições por minuto. A API respeita
+                  isso (uma consulta por vez, controle de taxa) e usa o Yahoo quando o limite estoura.
   2. Yahoo Finance (endpoint público NÃO oficial) — reserva para demonstração, sem chave.
                   Não tem garantia de contrato/disponibilidade; para uso comercial contrate um feed
                   licenciado (brapi pago, B3 Market Data, etc.) e adicione como provedor aqui.
@@ -30,6 +32,7 @@ import math
 import os
 import re
 import time
+from collections import deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -44,13 +47,21 @@ YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
 BRT = timezone(timedelta(hours=-3))  # Brasil não tem horário de verão desde 2019
 
 TTL_COTACAO = 15          # segundos
+TTL_COTACAO_PLANO_LIMITADO = 60  # quando a brapi só aceita 1 ativo por requisição (plano gratuito)
+# Limites da brapi. O plano gratuito permite 1 ativo por requisição, 20 requisições por minuto e
+# 1 requisição simultânea. O tamanho do lote é aprendido do erro da própria brapi (planos pagos
+# aceitam mais); BRAPI_LOTE e BRAPI_LIMITE_POR_MIN permitem fixar valores.
+_lote_brapi = int(os.getenv("BRAPI_LOTE", "0")) or 20
+LIMITE_BRAPI_POR_MIN = int(os.getenv("BRAPI_LIMITE_POR_MIN", "18"))
+_brapi_chamadas: deque[float] = deque()
+_brapi_sem = asyncio.Semaphore(1)
 TTL_HISTORICO = 3600      # 1 hora
 TTL_BUSCA = 3600
 MAX_TICKERS = 50
 RANGES_VALIDOS = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
 INTERVALOS_VALIDOS = {"1m", "2m", "5m", "15m", "30m", "60m", "1h", "1d", "5d", "1wk", "1mo"}
 TICKERS_BRAPI_SEM_TOKEN = {"PETR4", "VALE3", "ITUB4", "MGLU3"}  # únicos liberados sem token
-TICKER_RE = re.compile(r"^(\^[A-Z]{3,6}|[A-Z]{4}[0-9]{1,2}[A-Z]?)$")
+TICKER_RE = re.compile(r"^(\^[A-Z]{3,6}|[A-Z][A-Z0-9]{3}[0-9]{1,2}[A-Z]?)$")  # aceita B3SA3, A1MD34
 
 
 # ---------------------------------------------------------------- cache simples
@@ -146,6 +157,24 @@ def _lista_tickers(tickers: str) -> list[str]:
 
 # ---------------------------------------------------------------- provedor brapi
 
+async def _brapi_get(caminho: str, params: Optional[dict] = None) -> httpx.Response:
+    """GET na brapi respeitando 1 requisição simultânea e o limite por minuto.
+
+    Estourou o limite? Levanta ErroProvedor e quem chamou cai no provedor de reserva.
+    """
+    async with _brapi_sem:
+        agora = time.monotonic()
+        while _brapi_chamadas and agora - _brapi_chamadas[0] > 60:
+            _brapi_chamadas.popleft()
+        if len(_brapi_chamadas) >= LIMITE_BRAPI_POR_MIN:
+            raise ErroProvedor("limite de requisições por minuto da brapi atingido")
+        _brapi_chamadas.append(agora)
+        resp = await _http.get(f"{BRAPI_URL}{caminho}", params=params, headers=_headers_brapi())
+    if resp.status_code == 429:
+        raise ErroProvedor("brapi: limite de requisições (HTTP 429)")
+    return resp
+
+
 def _cotacao_brapi(r: dict) -> dict:
     return {
         "ticker": r["symbol"],
@@ -164,20 +193,35 @@ def _cotacao_brapi(r: dict) -> dict:
 
 
 async def _brapi_cotacoes(tickers: list[str]) -> dict[str, dict]:
-    resp = await _http.get(f"{BRAPI_URL}/quote/{','.join(tickers)}", headers=_headers_brapi())
-    try:
-        corpo = resp.json()
-    except ValueError:
-        raise ErroProvedor(f"brapi devolveu resposta inválida (HTTP {resp.status_code})")
-    if resp.status_code != 200 or corpo.get("error"):
-        raise ErroProvedor(f"brapi: {corpo.get('message') or resp.status_code}")
-    return {r["symbol"]: _cotacao_brapi(r) for r in corpo.get("results", []) if r.get("symbol")}
+    global _lote_brapi
+    saida: dict[str, dict] = {}
+    i = 0
+    while i < len(tickers):
+        lote = tickers[i:i + _lote_brapi]
+        try:
+            resp = await _brapi_get(f"/quote/{','.join(lote)}")
+            try:
+                corpo = resp.json()
+            except ValueError:
+                raise ErroProvedor(f"brapi devolveu resposta inválida (HTTP {resp.status_code})")
+            if corpo.get("code") == "QUOTES_PER_REQUEST_EXCEEDED":
+                novo = ((corpo.get("details") or {}).get("limit") or {}).get("current")
+                if novo and int(novo) < _lote_brapi:
+                    _lote_brapi = max(1, int(novo))  # aprende o limite do plano e refaz em lotes menores
+                    continue
+            if resp.status_code != 200 or corpo.get("error"):
+                raise ErroProvedor(f"brapi: {corpo.get('message') or resp.status_code}")
+        except ErroProvedor:
+            if saida:
+                break  # devolve o que já veio; o resto cai no provedor de reserva
+            raise
+        saida.update({r["symbol"]: _cotacao_brapi(r) for r in corpo.get("results", []) if r.get("symbol")})
+        i += len(lote)
+    return saida
 
 
 async def _brapi_historico(ticker: str, rng: str, intervalo: str) -> list[dict]:
-    resp = await _http.get(
-        f"{BRAPI_URL}/quote/{ticker}", params={"range": rng, "interval": intervalo}, headers=_headers_brapi()
-    )
+    resp = await _brapi_get(f"/quote/{ticker}", {"range": rng, "interval": intervalo})
     corpo = resp.json()
     if resp.status_code != 200 or corpo.get("error"):
         raise ErroProvedor(f"brapi: {corpo.get('message') or resp.status_code}")
@@ -279,7 +323,7 @@ async def obter_classe_ativo(ticker: str) -> str:
         return c
     classe = None
     try:
-        resp = await _http.get(f"{BRAPI_URL}/quote/list", params={"search": ticker, "limit": 5}, headers=_headers_brapi())
+        resp = await _brapi_get("/quote/list", {"search": ticker, "limit": 5})
         for a in resp.json().get("stocks", []):
             if a.get("stock") == ticker:
                 tipo, sub = a.get("type"), a.get("subType")
@@ -290,10 +334,13 @@ async def obter_classe_ativo(ticker: str) -> str:
                 elif tipo == "stock":
                     classe = "ACAO"
                 break
-    except (httpx.HTTPError, ValueError):
+    except (ErroProvedor, httpx.HTTPError, ValueError):
         pass
-    classe = classe or _classe_por_sufixo(ticker)
-    cache.guardar(chave, classe, 86400)
+    if classe:
+        cache.guardar(chave, classe, 86400)
+        return classe
+    classe = _classe_por_sufixo(ticker)
+    cache.guardar(chave, classe, 300)  # palpite: tenta de novo em 5 min
     return classe
 
 
@@ -366,7 +413,8 @@ async def obter_cotacoes(tickers: list[str]) -> tuple[dict[str, dict], dict[str,
                     else:
                         erros[t] = str(s) if isinstance(s, ErroProvedor) else "provedor indisponível"
             for t, c in buscadas.items():
-                cache.guardar(f"cot:{t}", c, TTL_COTACAO)
+                ttl = TTL_COTACAO_PLANO_LIMITADO if c["fonte"] == "brapi" and _lote_brapi == 1 else TTL_COTACAO
+                cache.guardar(f"cot:{t}", c, ttl)
                 resultado[t] = c
     return resultado, erros
 
@@ -438,6 +486,8 @@ async def saude():
     return {
         "status": "ok",
         "brapi_token_configurado": _token() is not None,
+        "brapi_ativos_por_requisicao": _lote_brapi,
+        "brapi_requisicoes_no_ultimo_minuto": len(_brapi_chamadas),
         "mercado_aberto": mercado_aberto(),
         "aviso": None if _token() else
         "Sem BRAPI_TOKEN: cotações caem no provedor de reserva (Yahoo, não oficial).",
@@ -515,7 +565,7 @@ async def ativos(
     if tipo:
         params["type"] = tipo
     try:
-        resp = await _http.get(f"{BRAPI_URL}/quote/list", params=params, headers=_headers_brapi())
+        resp = await _brapi_get("/quote/list", params)
         corpo = resp.json()
         if resp.status_code != 200 or corpo.get("error"):
             raise ErroProvedor(str(corpo.get("message") or resp.status_code))

@@ -467,6 +467,10 @@ tempo real e calcular risco/retorno na hora, em vez de depender dos 6 ativos fix
   o preço muda), `/mercado` e `/saude`.
 - **Provedores**: brapi.dev primeiro; Yahoo Finance (não oficial) como reserva. Sem `BRAPI_TOKEN`, a brapi
   só entrega PETR4, VALE3, ITUB4 e MGLU3, e o resto cai no Yahoo. **Não versionar o token.**
+- **Plano gratuito da brapi**: 1 ativo por requisição, 20 requisições/min e histórico só até 3 meses.
+  A API respeita esses limites (lote aprendido do erro da brapi, taxa máxima de 18/min, uma chamada por
+  vez) e cai no Yahoo quando estoura. `/saude` mostra o lote e o uso do último minuto. Variáveis
+  opcionais: `BRAPI_LOTE`, `BRAPI_LIMITE_POR_MIN`.
 - **Cache** em memória (15 s cotações, 1 h histórico e busca) para não estourar limites dos provedores.
 - **Limitações**: dados gratuitos têm atraso (~15 min), então é "quase tempo real". `mercado_aberto` é
   aproximado (dias úteis 10:00–17:55, sem feriados). Métricas usam janela e preço ajustado por proventos,
