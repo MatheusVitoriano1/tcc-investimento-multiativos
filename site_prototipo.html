@@ -159,6 +159,18 @@
   .lead-aviso { font-size: 12px; color: var(--text-muted); margin: 10px 0 0; }
   .lead-box .btn-primario { width: auto; padding: 11px 26px; }
   .lead-msg { font-size: 14px; margin: 12px 0 0; }
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; margin-left: 8px; vertical-align: middle; background: var(--bg-alt); color: var(--text-muted); border: 1px solid var(--border); }
+  .badge.aberto { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+  .mercado-busca { display: flex; gap: 8px; margin: 0 0 12px; max-width: 520px; }
+  .mercado-busca input { flex: 1; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: inherit; }
+  .mercado-busca button { width: auto; margin-top: 0; padding: 9px 16px; }
+  #tabelaMercado td.up { color: var(--ok); font-weight: 600; }
+  #tabelaMercado td.down { color: #c92a2a; font-weight: 600; }
+  #tabelaMercado tr.clicavel { cursor: pointer; }
+  #tabelaMercado tr.clicavel:hover { background: var(--accent-bg); }
+  #tabelaMercado td .nome { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); font-size: 12px; }
+  .btn-remover { border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .btn-remover:hover { color: #c92a2a; }
   .rodape { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-muted); }
   .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   .auth-erro { font-size: 13px; margin: 6px 0 14px; }
@@ -253,6 +265,19 @@
       <strong class="label">Aviso importante</strong>
       <span id="avisoImportante"></span>
     </div>
+
+    <section id="secMercado">
+      <h2>Mercado ao vivo <span class="badge" id="mercadoBadge">conectando…</span></h2>
+      <p class="hint">Cotações da B3 de ações e FIIs, com atraso de cerca de 15 minutos. Pesquise pelo código ou pelo nome, adicione à sua lista e clique em um ativo para ver seu risco e retorno no último ano.</p>
+      <div class="mercado-busca">
+        <input id="mercadoBusca" list="mercadoSugestoes" placeholder="Ex.: PETR4, KNCR11, Itaú" autocomplete="off" maxlength="30">
+        <datalist id="mercadoSugestoes"></datalist>
+        <button type="button" id="btnAddAtivo" class="btn-secundario">Adicionar</button>
+      </div>
+      <div class="table-wrap"><table id="tabelaMercado"></table></div>
+      <p class="hint" id="mercadoStatus" style="margin-top:8px;"></p>
+      <div id="analiseAtivo"></div>
+    </section>
 
     <section>
       <h2>Perfil de risco dos ativos (3 classes: Renda Fixa, FII, ETF de ações)</h2>
@@ -354,6 +379,8 @@ const BRAND = {
     escura: '#0b0b0b',         // cabeçalho, linhas de destaque
     primariaClara: '#fff6cc',  // fundo de linhas em destaque
   },
+  // Endereço da API de cotações (api_cotacoes.py). Em produção, trocar pela URL hospedada.
+  apiUrl: 'http://localhost:8000',
   textos: {
     avisoImportante: 'Esta é uma simulação educacional, feita com dados históricos. Ela não é recomendação de investimento personalizada nem consultoria de valores mobiliários, e rentabilidade passada não garante resultados futuros. Os valores são estimativas: no dia a dia, os preços de FIIs e de ações são muito difíceis de prever, por isso o gráfico mostra uma faixa de cenários possíveis e não uma linha única. Já a renda fixa pós-fixada, como o Tesouro Selic, tem resultado bem mais previsível. Para decidir onde investir, converse com um profissional habilitado.',
     rodape: 'Conteúdo educacional. Dados de fontes públicas (B3, CVM e Tesouro Transparente), sujeitos a defasagem.',
@@ -434,7 +461,7 @@ function nomeMesRelativo(dataBase, deslocamentoMeses) {
   const d = new Date(dataBase.getFullYear(), dataBase.getMonth() + deslocamentoMeses, 1);
   return `${NOMES_MESES[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
 }
-function fmtRS(v) { return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtRS(v) { if (v == null) return '—'; return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
 function mesesEntre(dataInicio, dataHorizonte) {
   const dias = (dataHorizonte - dataInicio) / (1000 * 60 * 60 * 24);
@@ -814,6 +841,131 @@ function atualizarVisibilidadeAuth() {
   if (logado) { fecharLogin(); carregarMeusInvestimentos(); }
 }
 
+// ---- Mercado ao vivo (API de cotações) ------------------------------------
+
+const LISTA_PADRAO = ['PETR4', 'VALE3', 'ITUB4', 'BOVA11', 'KNCR11', 'HGLG11'];
+const TICKER_VALIDO = /^[A-Z]{4}[0-9]{1,2}[A-Z]?$/;
+let listaMercado = carregarListaMercado();
+let cotacoesMercado = {};
+let fonteEventos = null;
+let tickerAnalisado = null;
+
+function carregarListaMercado() {
+  try {
+    const salva = JSON.parse(localStorage.getItem('listaMercado') || 'null');
+    if (Array.isArray(salva) && salva.length && salva.every(t => TICKER_VALIDO.test(t))) return salva;
+  } catch (e) { /* sem localStorage: usa a lista padrão */ }
+  return LISTA_PADRAO.slice();
+}
+function salvarListaMercado() {
+  try { localStorage.setItem('listaMercado', JSON.stringify(listaMercado)); } catch (e) { /* ignora */ }
+}
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const nf = (v, d = 2) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+
+function definirBadge(aberto, texto) {
+  const b = document.getElementById('mercadoBadge');
+  b.textContent = texto || (aberto ? 'Mercado aberto' : 'Mercado fechado');
+  b.classList.toggle('aberto', !!aberto);
+}
+function statusMercado(msg) { document.getElementById('mercadoStatus').textContent = msg || ''; }
+
+function renderMercado() {
+  const linhas = listaMercado.map(t => {
+    const c = cotacoesMercado[t];
+    if (!c) return `<tr><td>${esc(t)}</td><td colspan="6" style="text-align:left;color:var(--text-muted)">aguardando cotação…</td><td><button class="btn-remover" data-remover="${esc(t)}" title="Remover">×</button></td></tr>`;
+    const cls = c.variacao_pct > 0 ? 'up' : c.variacao_pct < 0 ? 'down' : '';
+    const sinal = c.variacao_pct > 0 ? '+' : '';
+    const hora = c.atualizado_em ? new Date(c.atualizado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+    return `<tr class="clicavel" data-analisar="${esc(t)}">
+      <td><strong>${esc(t)}</strong><span class="nome">${esc(c.nome)}</span></td>
+      <td>${fmtRS(c.preco)}</td>
+      <td class="${cls}">${c.variacao_pct == null ? '—' : sinal + nf(c.variacao_pct) + '%'}</td>
+      <td>${c.maxima == null ? '—' : fmtRS(c.maxima)}</td>
+      <td>${c.minima == null ? '—' : fmtRS(c.minima)}</td>
+      <td>${c.volume == null ? '—' : nf(c.volume, 0)}</td>
+      <td>${esc(hora)}</td>
+      <td><button class="btn-remover" data-remover="${esc(t)}" title="Remover da lista">×</button></td></tr>`;
+  }).join('');
+  document.getElementById('tabelaMercado').innerHTML =
+    '<thead><tr><th>Ativo</th><th>Preço</th><th>Variação</th><th>Máxima</th><th>Mínima</th><th>Volume</th><th>Atualizado</th><th></th></tr></thead><tbody>' + linhas + '</tbody>';
+}
+
+function conectarMercado() {
+  if (fonteEventos) { fonteEventos.close(); fonteEventos = null; }
+  renderMercado();
+  if (!listaMercado.length) { definirBadge(false, 'lista vazia'); return; }
+  if (typeof EventSource === 'undefined') { definirBadge(false, 'indisponível'); statusMercado('Este navegador não suporta atualização ao vivo.'); return; }
+  definirBadge(false, 'conectando…');
+  const src = new EventSource(`${BRAND.apiUrl}/stream?tickers=${encodeURIComponent(listaMercado.join(','))}&intervalo=10`);
+  fonteEventos = src;
+  src.addEventListener('cotacoes', (ev) => {
+    let d; try { d = JSON.parse(ev.data); } catch (e) { return; }
+    d.cotacoes.forEach(c => { cotacoesMercado[c.ticker] = c; });
+    definirBadge(d.mercado_aberto);
+    const semDados = Object.keys(d.erros || {});
+    statusMercado(semDados.length ? 'Sem cotação para: ' + semDados.join(', ') + '.' : '');
+    renderMercado();
+  });
+  src.onerror = () => {
+    definirBadge(false, 'sem conexão');
+    statusMercado('Não foi possível conectar à API de cotações. Verifique se ela está no ar; tentando reconectar automaticamente.');
+  };
+}
+
+async function adicionarAtivo() {
+  const campo = document.getElementById('mercadoBusca');
+  const t = campo.value.trim().toUpperCase().split(/[\s—-]/)[0].replace(/\.SA$/, '');
+  if (!TICKER_VALIDO.test(t)) { statusMercado('Escolha um código válido da lista de sugestões (ex.: PETR4).'); return; }
+  if (listaMercado.includes(t)) { statusMercado(t + ' já está na sua lista.'); return; }
+  if (listaMercado.length >= 20) { statusMercado('Limite de 20 ativos na lista.'); return; }
+  listaMercado.push(t); salvarListaMercado(); campo.value = '';
+  conectarMercado();
+}
+
+let temporizadorBusca = null;
+function sugerirAtivos() {
+  clearTimeout(temporizadorBusca);
+  const q = document.getElementById('mercadoBusca').value.trim();
+  if (q.length < 2) return;
+  temporizadorBusca = setTimeout(async () => {
+    try {
+      const r = await fetch(`${BRAND.apiUrl}/ativos?busca=${encodeURIComponent(q)}&limite=8`);
+      if (!r.ok) return;
+      const d = await r.json();
+      document.getElementById('mercadoSugestoes').innerHTML =
+        d.ativos.map(a => `<option value="${esc(a.ticker)}">${esc(a.nome || '')}</option>`).join('');
+    } catch (e) { /* API fora do ar: sem sugestões */ }
+  }, 300);
+}
+
+async function analisarAtivo(ticker) {
+  const box = document.getElementById('analiseAtivo');
+  tickerAnalisado = ticker;
+  box.innerHTML = `<p class="hint">Calculando risco e retorno de ${esc(ticker)}…</p>`;
+  try {
+    const r = await fetch(`${BRAND.apiUrl}/analise/${encodeURIComponent(ticker)}?range=1y`);
+    const d = await r.json();
+    if (tickerAnalisado !== ticker) return;
+    if (!r.ok) { box.innerHTML = `<p class="hint">Não foi possível analisar ${esc(ticker)}: ${esc(d.detail || r.status)}</p>`; return; }
+    const cards = [
+      ['Retorno em 12 meses', nf(d.retorno_periodo_pct) + '%'],
+      ['Volatilidade anualizada', nf(d.volatilidade_anualizada_pct) + '%'],
+      ['Maior queda no período', nf(d.max_drawdown_pct) + '%'],
+      ['Último fechamento', fmtRS(d.ultimo_fechamento)],
+      ['Média móvel 50 dias', d.media_movel_50 == null ? '—' : fmtRS(d.media_movel_50)],
+      ['Pregões analisados', String(d.pregoes_analisados)],
+    ];
+    box.innerHTML = `<h3 style="font-size:15px;margin:18px 0 10px;">${esc(ticker)} — risco e retorno (últimos 12 meses)</h3>
+      <div class="cards">${cards.map(([k, v]) => `<div class="card"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
+      <p class="hint">Dados históricos; não garantem resultados futuros. Retorno considera ajuste por proventos quando disponível.</p>`;
+  } catch (e) {
+    box.innerHTML = '<p class="hint">API de cotações indisponível no momento.</p>';
+  }
+}
+
 // ---- Captura de lead -------------------------------------------------------
 
 function mostrarMsgLead(msg, ok) {
@@ -1172,6 +1324,19 @@ document.getElementById('btnSair').addEventListener('click', sair);
 document.getElementById('btnAbrirLogin').addEventListener('click', abrirLogin);
 document.getElementById('btnFecharLogin').addEventListener('click', fecharLogin);
 document.getElementById('leadForm').addEventListener('submit', enviarLead);
+document.getElementById('btnAddAtivo').addEventListener('click', adicionarAtivo);
+document.getElementById('mercadoBusca').addEventListener('input', sugerirAtivos);
+document.getElementById('mercadoBusca').addEventListener('keydown', (e) => { if (e.key === 'Enter') adicionarAtivo(); });
+document.getElementById('tabelaMercado').addEventListener('click', (e) => {
+  const rem = e.target.closest('[data-remover]');
+  if (rem) {
+    listaMercado = listaMercado.filter(t => t !== rem.dataset.remover);
+    salvarListaMercado(); conectarMercado(); return;
+  }
+  const lin = e.target.closest('[data-analisar]');
+  if (lin) analisarAtivo(lin.dataset.analisar);
+});
+conectarMercado();
 atualizarVisibilidadeAuth();
 document.getElementById('authSenha').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
 

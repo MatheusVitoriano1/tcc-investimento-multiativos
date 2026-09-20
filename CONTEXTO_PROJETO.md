@@ -616,6 +616,18 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
 - `app_streamlit.py` (versão pessoal) NÃO foi alterado.
 - Revisão jurídica dos textos (LGPD/CVM) por profissional continua recomendada antes de uso comercial.
 
+### Painel "Mercado ao vivo" no site (20/09, branch `demo-white-label`)
+- Primeira integração da API de cotações ao site: seção com lista de ativos (padrão: PETR4, VALE3, ITUB4,
+  BOVA11, KNCR11, HGLG11), busca com sugestões (`/ativos`), adicionar/remover (lista salva no navegador),
+  atualização ao vivo por SSE (`/stream`), selo de mercado aberto/fechado e, ao clicar em um ativo,
+  cartões de risco/retorno de 12 meses (`/analise`). Endereço da API em `BRAND.apiUrl`
+  (hoje `http://localhost:8000`; trocar pela URL hospedada). Sem a API no ar, o painel mostra
+  "sem conexão" e o resto do site segue normal.
+- Testado com a API real (cotações, busca, adicionar, análise, remover), sem erros de console. Mercado
+  estava fechado (domingo), então a atualização ao vivo com pregão aberto ainda não foi observada.
+- **Ainda não feito**: o simulador/recomendação continua usando os 6 ativos fixos do pipeline; a troca
+  por dados da API (para qualquer ativo) é o próximo passo dessa frente. API ainda sem hospedagem.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com
