@@ -576,6 +576,22 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
   `demo-white-label`, sem mexer no site pessoal publicado em `master`.
 - Textos longos (subtítulo, aviso de limitação) ainda são hardcoded — tratados na Fase 3.
 
+### Fase 2 do pivô — captura de lead (20/09, branch `demo-white-label`)
+- `arquivo_tcc/` removida de propósito (não é mais necessária).
+- `supabase_leads.sql` (novo): tabela `leads` com RLS só de INSERT para anônimos (sem select/update/delete
+  pela chave pública), constraints de formato e consentimento LGPD obrigatório com o texto exibido salvo
+  junto. **Ação pendente do usuário: rodar esse SQL no SQL Editor do Supabase** — sem isso o envio falha.
+- `site_prototipo.html`: seção "Quer conversar com um especialista?" logo após a tabela de recomendação
+  (nome, e-mail, telefone, checkbox de consentimento, aviso de "simulação ilustrativa" ao lado do botão,
+  honeypot anti-robô). Salva também o perfil simulado (faixa, orçamento, horizonte, ativo, valor).
+  Textos de consentimento/aviso ficam em `BRAND.lead`.
+- Login virou **opcional**: o simulador abre direto; "Entrar" abre um modal; "Meus investimentos" e o
+  botão Registrar só exigem login quando usados.
+- Testado com Playwright (Supabase interceptado): validações, honeypot, erro 500, sucesso, payload e
+  layout mobile sem scroll horizontal; sem erros de console. NÃO testado contra o Supabase real.
+- Leads são lidos pelo Table Editor do Supabase. Notificação à equipe comercial (e-mail/webhook) ainda
+  não implementada — depende da escolha de CRM/e-mail.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com

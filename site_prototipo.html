@@ -138,12 +138,28 @@
   }
   .btn-excluir:hover { background: #fff0f0; }
 
-  .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .auth-screen {
+    display: none; position: fixed; inset: 0; z-index: 50; background: rgba(11,11,11,0.6);
+    align-items: center; justify-content: center; padding: 24px;
+  }
   .auth-card {
     width: 380px; max-width: 100%; background: var(--bg); border: 1px solid var(--border);
     border-radius: 12px; box-shadow: 0 8px 28px rgba(20, 24, 33, 0.08); padding: 32px 24px;
   }
   .auth-card h2 { font-size: 18px; margin: 0 0 8px; }
+  .lead-box {
+    background: var(--bg); border: 1px solid var(--border); border-top: 4px solid var(--accent);
+    border-radius: 10px; padding: 22px 24px;
+  }
+  .lead-box h2 { margin: 0 0 4px; }
+  .lead-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0 6px; }
+  .lead-grid .field { margin-bottom: 0; }
+  .lead-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text-muted); margin: 12px 0; }
+  .lead-check input { margin-top: 3px; }
+  .lead-aviso { font-size: 12px; color: var(--text-muted); margin: 10px 0 0; }
+  .lead-box .btn-primario { width: auto; padding: 11px 26px; }
+  .lead-msg { font-size: 14px; margin: 12px 0 0; }
+  .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   .auth-erro { font-size: 13px; margin: 6px 0 14px; }
 
   .conta-bar {
@@ -169,6 +185,7 @@
   .brand-contato a:hover { text-decoration: underline; }
 
   @media (max-width: 800px) {
+    .lead-grid { grid-template-columns: 1fr; }
     .layout { flex-direction: column; }
     aside { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
     .cards { grid-template-columns: 1fr; }
@@ -183,7 +200,7 @@
 <div class="auth-screen" id="authScreen">
   <div class="auth-card">
     <h2>Entrar</h2>
-    <p class="intro-text">Entre com e-mail e senha para registrar e acompanhar seus investimentos.</p>
+    <p class="intro-text">Opcional: entre com e-mail e senha para registrar e acompanhar seus investimentos.</p>
     <div class="field">
       <label for="authEmail">E-mail</label>
       <input type="email" id="authEmail" autocomplete="email">
@@ -195,14 +212,16 @@
     <p class="auth-erro" id="authErro" style="display:none;"></p>
     <button id="btnEntrar" type="button" class="btn-primario">Entrar</button>
     <button id="btnCriarConta" type="button" class="btn-secundario">Criar conta</button>
+    <button id="btnFecharLogin" type="button" class="btn-secundario">Continuar sem entrar</button>
   </div>
 </div>
 
-<div class="layout pre-submit" id="layout" style="display:none;">
+<div class="layout pre-submit" id="layout">
   <aside>
     <div class="conta-bar">
       <span id="contaEmail"></span>
-      <button id="btnSair" type="button">Sair</button>
+      <button id="btnSair" type="button" style="display:none;">Sair</button>
+      <button id="btnAbrirLogin" type="button">Entrar</button>
     </div>
     <h2>Seu perfil</h2>
     <p class="intro-text" id="introText">Antes de ver a recomendação, conte um pouco sobre o seu perfil de investimento.</p>
@@ -266,6 +285,28 @@
       </div>
     </section>
 
+    <section id="leadSection">
+      <div class="lead-box">
+        <h2>Quer conversar com um especialista?</h2>
+        <p class="hint" style="margin:0;">Deixe seu contato e um consultor retorna para tirar dúvidas sobre esta simulação e apresentar opções de investimento.</p>
+        <form id="leadForm" novalidate>
+          <div class="lead-grid">
+            <div class="field"><label for="leadNome">Nome</label><input type="text" id="leadNome" autocomplete="name" maxlength="120"></div>
+            <div class="field"><label for="leadEmail">E-mail</label><input type="email" id="leadEmail" autocomplete="email" maxlength="160"></div>
+            <div class="field"><label for="leadTelefone">Telefone / WhatsApp</label><input type="tel" id="leadTelefone" autocomplete="tel" placeholder="(XX) 99999-9999" maxlength="20"></div>
+          </div>
+          <div class="hp-field" aria-hidden="true"><label>Não preencha <input type="text" id="leadWebsite" tabindex="-1" autocomplete="off"></label></div>
+          <label class="lead-check">
+            <input type="checkbox" id="leadConsentimento">
+            <span id="leadConsentimentoTexto"></span>
+          </label>
+          <button type="submit" id="btnEnviarLead" class="btn-primario">Quero ser contatado</button>
+          <p class="lead-msg" id="leadMsg" style="display:none;"></p>
+          <p class="lead-aviso" id="leadAviso"></p>
+        </form>
+      </div>
+    </section>
+
     <section>
       <h2>Evolução do valor acumulado (faixa de incerteza via Monte Carlo)</h2>
       <p class="hint">Área sombreada = faixa entre o percentil 10 e o percentil 90 de 500 simulações, usando a volatilidade mensal histórica real de cada ativo. Linha sólida = mediana.</p>
@@ -297,7 +338,7 @@
       </div>
     </section>
 
-    <section>
+    <section id="secMeusInvestimentos" style="display:none;">
       <h2>Meus investimentos</h2>
       <p class="hint">
         Investimentos que você registrou a partir da tabela de recomendação acima (botão
@@ -325,6 +366,10 @@ const BRAND = {
     escura: '#0b0b0b',         // cabeçalho, linhas de destaque
     primariaClara: '#fff6cc',  // fundo de linhas em destaque
   },
+  lead: {
+    textoConsentimento: 'Autorizo o contato por e-mail, telefone ou WhatsApp para falar sobre esta simulação e sobre produtos de investimento, e concordo com o tratamento dos meus dados pessoais para esse fim, conforme a Lei Geral de Proteção de Dados (LGPD). Posso revogar o consentimento a qualquer momento.',
+    aviso: 'Simulação ilustrativa, baseada em dados históricos. Não constitui recomendação de investimento personalizada nem consultoria de valores mobiliários. Rentabilidade passada não garante resultados futuros.',
+  },
   // Logo fictício (SVG inline). Trocar por <img src="logo.svg"> para uma marca real.
   logoSvg: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#ffc800"/><path d="M8 22l5-6 4 3 7-9" fill="none" stroke="#0b0b0b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
@@ -340,6 +385,8 @@ function aplicarMarca() {
   const tel = document.getElementById('brandTelefone');
   tel.textContent = BRAND.telefoneExibicao;
   tel.href = 'tel:' + BRAND.telefoneLink;
+  document.getElementById('leadConsentimentoTexto').textContent = BRAND.lead.textoConsentimento;
+  document.getElementById('leadAviso').textContent = BRAND.lead.aviso;
   document.querySelectorAll('[data-brand="nome"]').forEach(e => { e.textContent = BRAND.nome; });
 }
 aplicarMarca();
@@ -359,6 +406,7 @@ try {
   console.error('Supabase não inicializado — configure SUPABASE_URL e SUPABASE_ANON_KEY.', e);
 }
 let usuarioAtual = null;
+let ultimoResultadoSimulacao = null;
 
 const DATA_REFERENCIA = new Date('2026-08-24T00:00:00');
 const FUNDOS = {
@@ -758,24 +806,67 @@ async function sair() {
   if (sb) await sb.auth.signOut();
 }
 
+function abrirLogin() { document.getElementById('authScreen').style.display = 'flex'; }
+function fecharLogin() { document.getElementById('authScreen').style.display = 'none'; }
+
+// Login é opcional: o simulador e o formulário de lead funcionam sem conta.
+// Estar logado só libera "Registrar" e "Meus investimentos".
 function atualizarVisibilidadeAuth() {
-  const authScreen = document.getElementById('authScreen');
-  const layout = document.getElementById('layout');
-  if (usuarioAtual) {
-    authScreen.style.display = 'none';
-    layout.style.display = 'flex';
-    document.getElementById('contaEmail').textContent = usuarioAtual.email;
-    carregarMeusInvestimentos();
-  } else {
-    authScreen.style.display = 'flex';
-    layout.style.display = 'none';
-  }
+  const logado = !!usuarioAtual;
+  document.getElementById('contaEmail').textContent = logado ? usuarioAtual.email : '';
+  document.getElementById('btnSair').style.display = logado ? '' : 'none';
+  document.getElementById('btnAbrirLogin').style.display = logado ? 'none' : '';
+  document.getElementById('secMeusInvestimentos').style.display = logado ? '' : 'none';
+  if (logado) { fecharLogin(); carregarMeusInvestimentos(); }
+}
+
+// ---- Captura de lead -------------------------------------------------------
+
+function mostrarMsgLead(msg, ok) {
+  const el = document.getElementById('leadMsg');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+  el.style.color = ok ? 'var(--ok)' : '#c92a2a';
+}
+
+async function enviarLead(ev) {
+  ev.preventDefault();
+  mostrarMsgLead('');
+  // Honeypot: robôs preenchem, pessoas não. Finge sucesso sem enviar.
+  if (document.getElementById('leadWebsite').value) { mostrarMsgLead('Obrigado! Entraremos em contato.', true); return; }
+  const nome = document.getElementById('leadNome').value.trim();
+  const email = document.getElementById('leadEmail').value.trim();
+  const telefone = document.getElementById('leadTelefone').value.replace(/\D/g, '');
+  if (nome.length < 2) { mostrarMsgLead('Informe seu nome.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { mostrarMsgLead('Informe um e-mail válido.'); return; }
+  if (!/^[0-9]{10,11}$/.test(telefone)) { mostrarMsgLead('Informe telefone com DDD (10 ou 11 dígitos).'); return; }
+  if (!document.getElementById('leadConsentimento').checked) { mostrarMsgLead('É necessário aceitar o consentimento para enviarmos seu contato ao consultor.'); return; }
+  if (!sb) { mostrarMsgLead('Envio indisponível: o site ainda não foi conectado ao banco de dados.'); return; }
+
+  const btn = document.getElementById('btnEnviarLead');
+  btn.disabled = true;
+  const budget = parseFloat(document.getElementById('budget').value) || null;
+  const { error } = await sb.from('leads').insert({
+    nome, email, telefone,
+    consentimento_lgpd: true,
+    texto_consentimento: BRAND.lead.textoConsentimento,
+    faixa_risco: document.getElementById('faixaRisco').value,
+    orcamento_mensal: budget,
+    data_horizonte: document.getElementById('horizonte').value || null,
+    ativo_simulado: ultimoResultadoSimulacao ? ultimoResultadoSimulacao.ativo : null,
+    valor_estimado_rs: ultimoResultadoSimulacao ? Math.round(ultimoResultadoSimulacao.valor * 100) / 100 : null,
+    origem: 'simulador',
+  });
+  btn.disabled = false;
+  if (error) { mostrarMsgLead('Não foi possível enviar agora. Tente novamente em instantes.'); console.error('lead:', error); return; }
+  document.getElementById('leadForm').reset();
+  mostrarMsgLead('Obrigado! Recebemos seu contato e um consultor falará com você em breve.', true);
 }
 
 // ---- Meus investimentos (persistidos no Supabase) --------------------------
 
 async function salvarInvestimento(ticker, classeAtivo, retornoTotalPct, valorAcumuladoRs) {
-  if (!usuarioAtual) return;
+  if (!usuarioAtual) { abrirLogin(); return; }
   const horizonteStr = document.getElementById('horizonte').value;
   const faixaRisco = document.getElementById('faixaRisco').value;
   const budget = parseFloat(document.getElementById('budget').value) || 0;
@@ -1011,6 +1102,7 @@ function atualizar() {
   }
 
   const melhor = elegiveis.slice().sort((a, b) => b.valorAcumulado - a.valorAcumulado)[0];
+  ultimoResultadoSimulacao = { ativo: melhor.ticker, valor: melhor.valorAcumulado };
   const rendimento = melhor.valorAcumulado - melhor.totalAportado;
   cardsEl.innerHTML = `
     <div class="card"><div class="k">Ativo recomendado</div><div class="v">${melhor.ticker}</div></div>
@@ -1078,11 +1170,15 @@ document.getElementById('btnComecar').addEventListener('click', () => {
   document.getElementById('introText').textContent = 'Você pode ajustar seu perfil a qualquer momento — a recomendação atualiza automaticamente.';
 });
 
-// Autenticação: a barra lateral e o dashboard inteiro (div#layout) só aparecem
-// depois de logado — sb.auth cuida de persistir a sessão entre visitas.
+// Autenticação opcional: o simulador e o formulário de lead abrem sem conta;
+// sb.auth cuida de persistir a sessão entre visitas de quem escolher entrar.
 document.getElementById('btnEntrar').addEventListener('click', entrar);
 document.getElementById('btnCriarConta').addEventListener('click', criarConta);
 document.getElementById('btnSair').addEventListener('click', sair);
+document.getElementById('btnAbrirLogin').addEventListener('click', abrirLogin);
+document.getElementById('btnFecharLogin').addEventListener('click', fecharLogin);
+document.getElementById('leadForm').addEventListener('submit', enviarLead);
+atualizarVisibilidadeAuth();
 document.getElementById('authSenha').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
 
 if (sb) {
