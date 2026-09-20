@@ -452,3 +452,27 @@ Sem ordem de prioridade fixa:
   tem).
 - Validação cruzada temporal (walk-forward) e ajuste de hiperparâmetros do
   XGBoost — listado desde cedo como "trabalho futuro", ainda não iniciado.
+
+## 14. API de cotações da B3 (`api_cotacoes.py`)
+
+Serviço FastAPI independente do app e do pipeline, para acompanhar **qualquer ativo da B3** quase em
+tempo real e calcular risco/retorno na hora, em vez de depender dos 6 ativos fixos dos CSVs.
+
+- **Rodar**: `pip install -r requirements-api.txt` e `uvicorn api_cotacoes:app --reload --port 8000`.
+  Documentação interativa em `/docs`. Dependências em arquivo próprio (`requirements-api.txt`) para não
+  engordar o app nem o pipeline.
+- **Endpoints**: `/cotacoes?tickers=A,B` (lote, até 50), `/cotacao/{ticker}`, `/historico/{ticker}`,
+  `/analise/{ticker}` (volatilidade, retorno do período, CAGR mensal, drawdown máximo, médias móveis),
+  `/ativos?busca=` (pesquisa de ações/FIIs/BDRs), `/stream?tickers=` (Server-Sent Events, envia só quando
+  o preço muda), `/mercado` e `/saude`.
+- **Provedores**: brapi.dev primeiro; Yahoo Finance (não oficial) como reserva. Sem `BRAPI_TOKEN`, a brapi
+  só entrega PETR4, VALE3, ITUB4 e MGLU3, e o resto cai no Yahoo. **Não versionar o token.**
+- **Cache** em memória (15 s cotações, 1 h histórico e busca) para não estourar limites dos provedores.
+- **Limitações**: dados gratuitos têm atraso (~15 min), então é "quase tempo real". `mercado_aberto` é
+  aproximado (dias úteis 10:00–17:55, sem feriados). Métricas usam janela e preço ajustado por proventos,
+  então diferem um pouco das do pipeline (ex.: BOVA11 1 ano: volatilidade 18,4% na API vs 15,9% no site,
+  que usa outra janela). `dy_medio_mensal` não é calculado. O Yahoo não garante contrato: para produto
+  comercial, contratar feed licenciado e adicionar como provedor. Netlify só serve estáticos, então a API
+  precisa de hospedagem própria (ex.: Render, Fly.io, Railway) e `ALLOWED_ORIGINS` restrito ao site.
+- **Ainda não integrada** ao site/`recomendacao.py`: próximo passo é trocar as estatísticas fixas
+  (`FUNDOS` no HTML, CSVs no Python) por chamadas a `/analise` e `/cotacoes`.

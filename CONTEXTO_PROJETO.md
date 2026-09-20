@@ -592,6 +592,16 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
 - Leads são lidos pelo Table Editor do Supabase. Notificação à equipe comercial (e-mail/webhook) ainda
   não implementada — depende da escolha de CRM/e-mail.
 
+### API de cotações da B3 em tempo real (20/09, branch `demo-white-label`)
+- Usuário pediu acompanhar todos os ativos da bolsa em tempo real e mudar a pesquisa/análise de valores;
+  decidiu fazer a API antes de seguir com as fases do pivô. Criados `api_cotacoes.py` e
+  `requirements-api.txt` (ver `DOCUMENTACAO.md`, seção 14). Testada localmente com dados reais: cotações,
+  histórico, análise, busca, cache, validação de entrada e SSE. Ainda não integrada ao site.
+- **Pendências**: obter token da brapi (`BRAPI_TOKEN`, cobre todos os tickers); escolher hospedagem da API;
+  integrar site e `recomendacao.py`.
+- Reteste do lead no Supabase real (20/09): projeto no ar, mas a tabela `leads` ainda **não existia**
+  (erro PGRST205) — falta rodar `supabase_leads.sql`. Nada foi gravado.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com
