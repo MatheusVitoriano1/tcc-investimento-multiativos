@@ -565,6 +565,17 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
 - Se vale reativar a confirmação de e-mail no Supabase Auth (hoje desativada) quando o fluxo deixar
   de ser só demonstração interna.
 
+### Fase 0 e 1 do pivô — white-label base (20/09, branch `demo-white-label`)
+- Marca fictícia da demo: **"Simulador de investimentos"**; telefone fictício `XX999999999`.
+- `site_prototipo.html` ganhou o objeto `BRAND` (nome, telefone, logo SVG fictício, cores) e a função
+  `aplicarMarca()`: é o único ponto a editar para reskinar. Cores viram variáveis CSS; cabeçalho de marca
+  com logo e telefone no topo; gráficos usam as cores da marca.
+- Paleta: preto + amarelo, no estilo de corretoras. O site da XP bloqueia acesso automatizado (HTTP 403),
+  então os hex exatos NÃO foram extraídos de lá — ajustar em `BRAND.cores` se quiser fidelidade.
+- Decisão de repositório (separado x branch) ainda em aberto; por ora o trabalho fica na branch
+  `demo-white-label`, sem mexer no site pessoal publicado em `master`.
+- Textos longos (subtítulo, aviso de limitação) ainda são hardcoded — tratados na Fase 3.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com
