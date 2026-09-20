@@ -659,6 +659,21 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
 - Para produto de verdade, o plano gratuito não sustenta muitos usuários/ativos ao vivo: avaliar plano
   pago da brapi (Startup: 10 ativos por requisição) ou feed licenciado.
 
+### Tela de um ativo (20/09, branch `demo-white-label`)
+- Ao clicar em um ativo da lista "Mercado ao vivo", abre a visão detalhada, inspirada em `Exemplo.png`
+  (VAMO3): preço grande com variação do dia, Min/Max do dia, volume; gráfico com períodos 1d, 5d, 1m, 6m,
+  1a e 5a e alternância linha/velas (com dica ao passar o mouse); cartões de Abertura, Fechamento anterior,
+  Min-Max do dia, Negócios, e variações do dia, do mês atual, YTD e 1 ano; abaixo, risco e retorno de 12
+  meses. Botão "← Voltar para visão geral" (também Esc e o botão Voltar do navegador, via `#ativo-CODIGO`).
+  Atualiza sozinha a cada 60 s e pelo fluxo ao vivo.
+- API: novo `/detalhe/{ticker}` (cotação + variações mês/YTD/12 meses); séries intradiárias com cache de
+  60 s; fechamento anterior da brapi passou a ser derivado de preço - variação (o campo original vinha
+  inconsistente). Para VAMO3 os números batem com o exemplo (3,45; +2,99%; 3,31 a 3,46; abertura 3,35);
+  mês/YTD/1a diferem um pouco (15,38 x 15,77; 6,81 x 6,48; -12,21 x -8,49) por fonte e ajuste de dados.
+- **Negócios** (nº de negócios do dia) não existe nas fontes gratuitas: o cartão aparece com "—".
+  **Volume** é aproximado em R$ (quantidade x preço médio do dia), pois as fontes trazem só a quantidade.
+- `Exemplo.png` fica só como referência local (não versionado).
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com

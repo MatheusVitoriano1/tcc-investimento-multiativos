@@ -159,6 +159,41 @@
   .lead-aviso { font-size: 12px; color: var(--text-muted); margin: 10px 0 0; }
   .lead-box .btn-primario { width: auto; padding: 11px 26px; }
   .lead-msg { font-size: 14px; margin: 12px 0 0; }
+  /* Tela de um ativo (visão detalhada) */
+  #viewAtivo { display: none; }
+  main.modo-ativo > *:not(#viewAtivo):not(.rodape) { display: none !important; }
+  main.modo-ativo #viewAtivo { display: block; }
+  .btn-voltar {
+    border: 1px solid var(--border); background: var(--bg); padding: 8px 14px; border-radius: 8px;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; margin-bottom: 18px;
+  }
+  .btn-voltar:hover { background: var(--accent-bg); }
+  .ativo-topo { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+  .ativo-preco { display: flex; align-items: baseline; gap: 6px; }
+  .ativo-preco .rs { font-size: 18px; color: var(--text-muted); }
+  .ativo-preco .valor { font-size: 46px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+  .pill { font-size: 13px; font-weight: 700; padding: 3px 9px; border-radius: 6px; align-self: center; margin-left: 6px; background: var(--bg-alt); }
+  .pill.up { background: var(--ok-bg); color: var(--ok); }
+  .pill.down { background: #fdecec; color: #c92a2a; }
+  .ativo-mini { border-left: 1px solid var(--border); padding-left: 18px; }
+  .ativo-mini .k { font-size: 12px; color: var(--text-muted); }
+  .ativo-mini .v { font-size: 20px; font-weight: 700; }
+  .ativo-chart-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+  .ativo-chart-head h2 { margin: 0; font-size: 22px; }
+  .ativo-chart-head h2 .nome { display: block; font-size: 13px; font-weight: 400; color: var(--text-muted); }
+  .ativo-controles { display: flex; gap: 10px; flex-wrap: wrap; }
+  .seg { display: inline-flex; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 99px; padding: 3px; gap: 2px; }
+  .seg button { border: none; background: none; padding: 6px 14px; border-radius: 99px; font-family: inherit; font-size: 13px; color: var(--text-muted); cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; }
+  .seg button.ativo { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+  .seg button svg { width: 16px; height: 16px; }
+  #ativoChartWrap { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 18px; }
+  #ativoChart { width: 100%; height: auto; display: block; }
+  .tip { position: absolute; pointer-events: none; background: var(--brand-dark); color: #fff; font-size: 12px; line-height: 1.45; padding: 6px 9px; border-radius: 6px; white-space: nowrap; display: none; z-index: 5; }
+  .ativo-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .ativo-cards .card { padding: 12px 14px; }
+  .ativo-cards .card .v { font-size: 20px; }
+  .ativo-cards .card .v.up { color: var(--ok); }
+  .ativo-cards .card .v.down { color: #c92a2a; }
   .badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; margin-left: 8px; vertical-align: middle; background: var(--bg-alt); color: var(--text-muted); border: 1px solid var(--border); }
   .badge.aberto { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
   .mercado-busca { display: flex; gap: 8px; margin: 0 0 12px; max-width: 520px; }
@@ -268,7 +303,7 @@
 
     <section id="secMercado">
       <h2>Mercado ao vivo <span class="badge" id="mercadoBadge">conectando…</span></h2>
-      <p class="hint">Cotações da B3 de ações e FIIs, com atraso de cerca de 15 minutos. Pesquise pelo código ou pelo nome, adicione à sua lista e clique em um ativo para ver seu risco e retorno no último ano. Os ativos da lista entram automaticamente na simulação mais abaixo.</p>
+      <p class="hint">Cotações da B3 de ações e FIIs, com atraso de cerca de 15 minutos. Pesquise pelo código ou pelo nome, adicione à sua lista e clique em um ativo para abrir a tela completa dele, com gráfico, variações e risco. Os ativos da lista entram automaticamente na simulação mais abaixo.</p>
       <div class="mercado-busca">
         <input id="mercadoBusca" list="mercadoSugestoes" placeholder="Ex.: PETR4, KNCR11, Itaú" autocomplete="off" maxlength="30">
         <datalist id="mercadoSugestoes"></datalist>
@@ -276,7 +311,6 @@
       </div>
       <div class="table-wrap"><table id="tabelaMercado"></table></div>
       <p class="hint" id="mercadoStatus" style="margin-top:8px;"></p>
-      <div id="analiseAtivo"></div>
     </section>
 
     <section>
@@ -360,6 +394,32 @@
       </p>
       <div id="meusInvestimentos"></div>
     </section>
+    <section id="viewAtivo">
+      <button type="button" class="btn-voltar" id="btnVoltarGeral">← Voltar para visão geral</button>
+      <div class="ativo-topo">
+        <div class="ativo-preco"><span class="rs">R$</span><span class="valor" id="ativoPreco">—</span><span class="pill" id="ativoVar"></span></div>
+        <div class="ativo-mini"><div class="k">Min (Dia)</div><div class="v" id="ativoMin">—</div></div>
+        <div class="ativo-mini"><div class="k">Max (Dia)</div><div class="v" id="ativoMax">—</div></div>
+        <div class="ativo-mini" title="Estimado: quantidade negociada x preço médio do dia"><div class="k">Volume (aprox.)</div><div class="v" id="ativoVolume">—</div></div>
+      </div>
+      <div class="ativo-chart-head">
+        <h2 id="ativoTitulo">Cotação<span class="nome" id="ativoNome"></span></h2>
+        <div class="ativo-controles">
+          <div class="seg" id="segPeriodo">
+            <button type="button" data-p="1d" class="ativo">1d</button><button type="button" data-p="5d">5d</button><button type="button" data-p="1m">1m</button><button type="button" data-p="6m">6m</button><button type="button" data-p="1a">1a</button><button type="button" data-p="5a">5a</button>
+          </div>
+          <div class="seg" id="segTipo">
+            <button type="button" data-t="linha" class="ativo" title="Gráfico de linha" aria-label="Gráfico de linha"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13V3M2 13h12M4.5 10l3-3 2 2 4-5"/></svg></button>
+            <button type="button" data-t="candle" title="Gráfico de velas" aria-label="Gráfico de velas"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 2v12M11 3v10"/><rect x="3.5" y="5" width="3" height="5" fill="currentColor"/><rect x="9.5" y="6" width="3" height="4" fill="currentColor"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div id="ativoChartWrap"><svg id="ativoChart" viewBox="0 0 1000 380" role="img" aria-label="Gráfico de cotação"></svg><div class="tip" id="ativoTip"></div></div>
+      <div class="ativo-cards" id="ativoCards"></div>
+      <div id="analiseAtivo"></div>
+      <p class="hint">Cotações com atraso de cerca de 15 minutos. Variações calculadas sobre fechamentos sem ajuste por proventos, podendo diferir levemente de outros portais. O número de negócios do dia não é oferecido pelas fontes gratuitas. Informação educacional, não é recomendação de investimento.</p>
+    </section>
+
     <footer class="rodape"><p id="rodapeTexto"></p></footer>
   </main>
 </div>
@@ -923,6 +983,9 @@ function conectarMercado() {
     const semDados = Object.keys(d.erros || {});
     statusMercado(semDados.length ? 'Sem cotação para: ' + semDados.join(', ') + '.' : '');
     renderMercado();
+    d.cotacoes.forEach(c => {
+      if (estadoAtivo.ticker === c.ticker) { estadoAtivo.detalhe = { ...estadoAtivo.detalhe, ...c }; renderTopoAtivo(); }
+    });
   });
   src.onerror = () => {
     definirBadge(false, 'sem conexão');
@@ -1030,6 +1093,209 @@ async function sincronizarAtivosApi() {
   }));
   if (mudou) { renderPerfis(); atualizarOpcoesComparacao(); atualizar(); }
   if (falhas.length) statusMercado('Não foi possível incluir na simulação: ' + falhas.join(', ') + ' (histórico indisponível ou API fora do ar).');
+}
+
+// ---- Tela de um ativo ------------------------------------------------------
+// Abre ao clicar em um ativo da lista "Mercado ao vivo". O endereço ganha #ativo-CODIGO,
+// então o botão Voltar do navegador (e o botão da tela) retornam à visão geral.
+
+const PERIODOS = { '1d': ['1d', '5m'], '5d': ['5d', '15m'], '1m': ['1mo', '1d'], '6m': ['6mo', '1d'], '1a': ['1y', '1d'], '5a': ['5y', '1wk'] };
+const COR_ALTA = '#0a7a3d', COR_BAIXA = '#c92a2a';
+const estadoAtivo = { ticker: null, periodo: '1d', tipo: 'linha', pontos: [], detalhe: null, intra: null, seq: 0, timer: null, scrollGeral: 0 };
+
+function abrirAtivo(t) { location.hash = 'ativo-' + t; }
+function voltarVisaoGeral() { location.hash = ''; }
+
+function sincronizarViewPelaHash() {
+  const m = /^#ativo-([A-Z0-9]+)$/.exec(location.hash);
+  const main = document.querySelector('main');
+  const aberta = main.classList.contains('modo-ativo');
+  if (m) { if (!aberta || estadoAtivo.ticker !== m[1]) mostrarAtivo(m[1]); }
+  else if (aberta) esconderAtivo();
+}
+
+function mostrarAtivo(t) {
+  const main = document.querySelector('main');
+  if (!main.classList.contains('modo-ativo')) estadoAtivo.scrollGeral = window.scrollY;
+  clearInterval(estadoAtivo.timer);
+  Object.assign(estadoAtivo, { ticker: t, periodo: '1d', pontos: [], detalhe: null, intra: null });
+  main.classList.add('modo-ativo');
+  window.scrollTo(0, 0);
+  document.querySelectorAll('#segPeriodo button').forEach(b => b.classList.toggle('ativo', b.dataset.p === '1d'));
+  document.getElementById('analiseAtivo').innerHTML = '';
+  renderTopoAtivo();
+  carregarDetalheAtivo();
+  carregarGraficoAtivo();
+  analisarAtivo(t);
+  estadoAtivo.timer = setInterval(() => {  // mantém a tela viva enquanto aberta
+    carregarDetalheAtivo();
+    if (estadoAtivo.periodo === '1d') carregarGraficoAtivo(true);
+  }, 60000);
+}
+
+function esconderAtivo() {
+  clearInterval(estadoAtivo.timer);
+  estadoAtivo.ticker = null;
+  estadoAtivo.seq++;  // descarta respostas em andamento
+  document.querySelector('main').classList.remove('modo-ativo');
+  window.scrollTo(0, estadoAtivo.scrollGeral || 0);
+}
+
+async function carregarDetalheAtivo() {
+  const t = estadoAtivo.ticker;
+  try {
+    const r = await fetch(`${BRAND.apiUrl}/detalhe/${encodeURIComponent(t)}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (estadoAtivo.ticker !== t) return;
+    estadoAtivo.detalhe = { ...estadoAtivo.detalhe, ...d };
+    renderTopoAtivo();
+  } catch (e) { /* API fora do ar: mantém o que já tem */ }
+}
+
+function classeSinal(v) { return v == null ? '' : v > 0 ? 'up' : v < 0 ? 'down' : ''; }
+function textoPct(v) { return v == null ? '—' : (v > 0 ? '+' : '') + nf(v) + '%'; }
+
+function renderTopoAtivo() {
+  const t = estadoAtivo.ticker;
+  if (!t) return;
+  const c = { ...(cotacoesMercado[t] || {}), ...(estadoAtivo.detalhe || {}) };
+  const intra = estadoAtivo.intra || {};
+  const min = c.minima != null ? c.minima : intra.min;
+  const max = c.maxima != null ? c.maxima : intra.max;
+  const abertura = c.abertura != null ? c.abertura : intra.abertura;
+  const vol = c.volume != null ? c.volume : intra.volume;
+  const precoMedio = (min != null && max != null && c.preco != null) ? (min + max + c.preco) / 3 : c.preco;
+  const volRs = (vol != null && precoMedio != null) ? vol * precoMedio : null;
+  const v = c.variacoes || {};
+  const dia = c.variacao_pct != null ? c.variacao_pct : v.dia;
+
+  document.getElementById('ativoPreco').textContent = c.preco == null ? '—' : nf(c.preco);
+  const pill = document.getElementById('ativoVar');
+  pill.textContent = dia == null ? '' : (dia > 0 ? '▲ ' : dia < 0 ? '▼ ' : '') + nf(Math.abs(dia)) + '%';
+  pill.className = 'pill ' + classeSinal(dia);
+  document.getElementById('ativoMin').textContent = min == null ? '—' : fmtRS(min);
+  document.getElementById('ativoMax').textContent = max == null ? '—' : fmtRS(max);
+  document.getElementById('ativoVolume').textContent = volRs == null ? '—' : fmtRS(volRs).replace(/,\d+$/, '');
+  document.getElementById('ativoTitulo').firstChild.textContent = 'Cotação de ' + t;
+  document.getElementById('ativoNome').textContent = c.nome || '';
+
+  const itens = [
+    ['Abertura', abertura == null ? '—' : fmtRS(abertura), ''],
+    ['Fechamento anterior', c.fechamento_anterior == null ? '—' : fmtRS(c.fechamento_anterior), ''],
+    ['Min - Max (Dia)', (min != null && max != null) ? nf(min) + ' - ' + nf(max) : '—', ''],
+    ['Negócios', c.negocios == null ? '—' : nf(c.negocios, 0), ''],
+    ['Variação (1d)', textoPct(dia), classeSinal(dia)],
+    ['Variação (Mês Atual)', textoPct(v.mes_atual), classeSinal(v.mes_atual)],
+    ['Variação (YTD)', textoPct(v.ytd), classeSinal(v.ytd)],
+    ['Variação (1a)', textoPct(v.doze_meses), classeSinal(v.doze_meses)],
+  ];
+  document.getElementById('ativoCards').innerHTML = itens.map(([k, val, cls]) =>
+    `<div class="card"><div class="k">${esc(k)}</div><div class="v ${cls}">${esc(val)}</div></div>`).join('');
+}
+
+async function carregarGraficoAtivo(silencioso) {
+  const t = estadoAtivo.ticker, per = estadoAtivo.periodo, [rng, intervalo] = PERIODOS[per];
+  const seq = ++estadoAtivo.seq;
+  const svg = document.getElementById('ativoChart');
+  if (!silencioso) svg.innerHTML = '<text x="500" y="190" text-anchor="middle" font-size="15" fill="#5b6270">Carregando gráfico…</text>';
+  try {
+    const r = await fetch(`${BRAND.apiUrl}/historico/${encodeURIComponent(t)}?range=${rng}&intervalo=${intervalo}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (seq !== estadoAtivo.seq || estadoAtivo.ticker !== t) return;
+    estadoAtivo.pontos = d.pontos.filter(p => p.fechamento != null);
+    if (per === '1d' && estadoAtivo.pontos.length) {
+      const ps = estadoAtivo.pontos;
+      estadoAtivo.intra = {
+        min: Math.min(...ps.map(p => p.minima != null ? p.minima : p.fechamento)),
+        max: Math.max(...ps.map(p => p.maxima != null ? p.maxima : p.fechamento)),
+        abertura: ps[0].abertura != null ? ps[0].abertura : ps[0].fechamento,
+        volume: ps.reduce((a, p) => a + (p.volume || 0), 0) || null,
+      };
+      renderTopoAtivo();
+    }
+    desenharGraficoAtivo();
+  } catch (e) {
+    if (seq !== estadoAtivo.seq) return;
+    svg.innerHTML = '<text x="500" y="190" text-anchor="middle" font-size="15" fill="#5b6270">Gráfico indisponível no momento.</text>';
+  }
+}
+
+function desenharGraficoAtivo() {
+  const svg = document.getElementById('ativoChart');
+  const tip = document.getElementById('ativoTip');
+  const pts = estadoAtivo.pontos, per = estadoAtivo.periodo, candle = estadoAtivo.tipo === 'candle';
+  if (pts.length < 2) { svg.innerHTML = '<text x="500" y="190" text-anchor="middle" font-size="15" fill="#5b6270">Sem dados para este período.</text>'; return; }
+
+  const W = 1000, H = 380, L = 70, R = 16, T = 16, B = 34;
+  const abr = p => p.abertura != null ? p.abertura : p.fechamento;
+  const alta = p => p.maxima != null ? p.maxima : Math.max(abr(p), p.fechamento);
+  const baixa = p => p.minima != null ? p.minima : Math.min(abr(p), p.fechamento);
+  let lo = Math.min(...pts.map(p => candle ? baixa(p) : p.fechamento));
+  let hi = Math.max(...pts.map(p => candle ? alta(p) : p.fechamento));
+  const folga = (hi - lo || hi * 0.01) * 0.06;
+  lo -= folga; hi += folga;
+  const n = pts.length, plotW = W - L - R, plotH = H - T - B;
+  const passo = plotW / n;
+  const x = i => candle ? L + (i + 0.5) * passo : L + (n === 1 ? plotW / 2 : i * plotW / (n - 1));
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * plotH;
+  const subiu = pts[pts.length - 1].fechamento >= abr(pts[0]);
+  const cor = subiu ? COR_ALTA : COR_BAIXA;
+
+  const tz = 'America/Sao_Paulo';
+  const fmtEixo = { '1d': { hour: '2-digit', minute: '2-digit' }, '5d': { day: '2-digit', month: '2-digit' }, '1m': { day: '2-digit', month: '2-digit' }, '6m': { day: '2-digit', month: '2-digit' }, '1a': { month: '2-digit', year: '2-digit' }, '5a': { month: '2-digit', year: '2-digit' } }[per];
+  const rotulo = (iso, o) => new Date(iso).toLocaleString('pt-BR', { ...o, timeZone: tz });
+
+  let g = `<defs><linearGradient id="gradAtivo" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${cor}" stop-opacity="0.22"/><stop offset="100%" stop-color="${cor}" stop-opacity="0"/></linearGradient></defs>`;
+  for (let k = 0; k <= 4; k++) {  // grade e eixo de preço
+    const v = lo + (hi - lo) * k / 4, yy = y(v);
+    g += `<line x1="${L}" y1="${yy}" x2="${W - R}" y2="${yy}" stroke="#eef0f3" stroke-dasharray="3,4"/>`;
+    g += `<text x="${L - 8}" y="${yy + 4}" text-anchor="end" font-size="12" fill="#5b6270">R$ ${nf(v)}</text>`;
+  }
+  const nRot = 6;
+  for (let k = 0; k < nRot; k++) {  // eixo de tempo
+    const i = Math.round(k * (n - 1) / (nRot - 1));
+    g += `<text x="${x(i)}" y="${H - 10}" text-anchor="${k === 0 ? 'start' : k === nRot - 1 ? 'end' : 'middle'}" font-size="12" fill="#5b6270">${rotulo(pts[i].data, fmtEixo)}</text>`;
+  }
+  if (candle) {
+    const larg = Math.max(1, Math.min(14, passo * 0.62));
+    pts.forEach((p, i) => {
+      const c = p.fechamento >= abr(p) ? COR_ALTA : COR_BAIXA;
+      const corpoTopo = y(Math.max(abr(p), p.fechamento)), corpoAlt = Math.max(1, Math.abs(y(abr(p)) - y(p.fechamento)));
+      g += `<line x1="${x(i)}" y1="${y(alta(p))}" x2="${x(i)}" y2="${y(baixa(p))}" stroke="${c}" stroke-width="1.2"/>`;
+      g += `<rect x="${x(i) - larg / 2}" y="${corpoTopo}" width="${larg}" height="${corpoAlt}" fill="${c}"/>`;
+    });
+  } else {
+    const linha = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.fechamento).toFixed(1)}`).join(' ');
+    g += `<polygon points="${x(0).toFixed(1)},${T + plotH} ${linha} ${x(n - 1).toFixed(1)},${T + plotH}" fill="url(#gradAtivo)"/>`;
+    g += `<polyline points="${linha}" fill="none" stroke="${cor}" stroke-width="2" stroke-linejoin="round"/>`;
+  }
+  g += `<line id="ativoCruz" x1="0" y1="${T}" x2="0" y2="${T + plotH}" stroke="#9aa1ac" stroke-dasharray="4,3" style="display:none"/>`;
+  g += `<circle id="ativoPonto" r="4.5" fill="${cor}" stroke="#fff" stroke-width="2" style="display:none"/>`;
+  svg.innerHTML = g;
+
+  const cruz = svg.querySelector('#ativoCruz'), ponto = svg.querySelector('#ativoPonto');
+  const wrap = document.getElementById('ativoChartWrap');
+  svg.onmousemove = (ev) => {
+    const r = svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left) * (W / r.width);
+    let i = candle ? Math.floor((px - L) / passo) : Math.round((px - L) / (plotW / (n - 1)));
+    i = Math.max(0, Math.min(n - 1, i));
+    const p = pts[i];
+    cruz.setAttribute('x1', x(i)); cruz.setAttribute('x2', x(i)); cruz.style.display = '';
+    if (!candle) { ponto.setAttribute('cx', x(i)); ponto.setAttribute('cy', y(p.fechamento)); ponto.style.display = ''; }
+    const quando = rotulo(p.data, per === '1d' || per === '5d' ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit', year: 'numeric' });
+    tip.innerHTML = `<strong>${esc(quando)}</strong><br>` + (candle
+      ? `A ${nf(abr(p))} · Máx ${nf(alta(p))}<br>Mín ${nf(baixa(p))} · F ${nf(p.fechamento)}`
+      : `R$ ${nf(p.fechamento)}`);
+    tip.style.display = 'block';
+    const wr = wrap.getBoundingClientRect();
+    const esquerda = ev.clientX - wr.left + 14;
+    tip.style.left = Math.min(esquerda, wr.width - tip.offsetWidth - 6) + 'px';
+    tip.style.top = Math.max(4, ev.clientY - wr.top - 46) + 'px';
+  };
+  svg.onmouseleave = () => { tip.style.display = 'none'; cruz.style.display = 'none'; ponto.style.display = 'none'; };
 }
 
 // ---- Captura de lead -------------------------------------------------------
@@ -1399,7 +1665,24 @@ document.getElementById('tabelaMercado').addEventListener('click', (e) => {
     salvarListaMercado(); conectarMercado(); sincronizarAtivosApi(); return;
   }
   const lin = e.target.closest('[data-analisar]');
-  if (lin) analisarAtivo(lin.dataset.analisar);
+  if (lin) abrirAtivo(lin.dataset.analisar);
+});
+document.getElementById('btnVoltarGeral').addEventListener('click', voltarVisaoGeral);
+window.addEventListener('hashchange', sincronizarViewPelaHash);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && estadoAtivo.ticker) voltarVisaoGeral(); });
+document.getElementById('segPeriodo').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-p]');
+  if (!b || !estadoAtivo.ticker) return;
+  estadoAtivo.periodo = b.dataset.p;
+  document.querySelectorAll('#segPeriodo button').forEach(x => x.classList.toggle('ativo', x === b));
+  carregarGraficoAtivo();
+});
+document.getElementById('segTipo').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-t]');
+  if (!b) return;
+  estadoAtivo.tipo = b.dataset.t;
+  document.querySelectorAll('#segTipo button').forEach(x => x.classList.toggle('ativo', x === b));
+  if (estadoAtivo.ticker) desenharGraficoAtivo();
 });
 conectarMercado();
 sincronizarAtivosApi();

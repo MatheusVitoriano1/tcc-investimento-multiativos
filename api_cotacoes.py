@@ -34,7 +34,7 @@ import re
 import time
 from collections import deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
@@ -185,7 +185,13 @@ def _cotacao_brapi(r: dict) -> dict:
         "abertura": r.get("regularMarketOpen"),
         "maxima": r.get("regularMarketDayHigh"),
         "minima": r.get("regularMarketDayLow"),
-        "fechamento_anterior": r.get("regularMarketPreviousClose"),
+        # O campo de fechamento anterior da brapi vem inconsistente com preço e variação
+        # (ex.: VAMO3 3,43 quando 3,45 com +2,99% implica 3,35). Deriva de preço - variação.
+        "fechamento_anterior": (
+            round(r["regularMarketPrice"] - r["regularMarketChange"], 4)
+            if r.get("regularMarketPrice") is not None and r.get("regularMarketChange") is not None
+            else r.get("regularMarketPreviousClose")
+        ),
         "volume": r.get("regularMarketVolume"),
         "atualizado_em": r.get("regularMarketTime"),
         "fonte": "brapi",
@@ -429,7 +435,8 @@ async def obter_historico(ticker: str, rng: str, intervalo: str) -> tuple[list[d
         for nome, fn in (("brapi", _brapi_historico), ("yahoo", _yahoo_historico)):
             try:
                 dados = await fn(ticker, rng, intervalo)
-                cache.guardar(chave, (dados, nome), TTL_HISTORICO)
+                intradia = intervalo.endswith(("m", "h")) and intervalo != "1mo"
+                cache.guardar(chave, (dados, nome), 60 if intradia else TTL_HISTORICO)
                 return dados, nome
             except (ErroProvedor, httpx.HTTPError, KeyError, IndexError, ValueError):
                 continue
@@ -529,6 +536,59 @@ async def historico(ticker: str, range: str = "1y", intervalo: str = "1d"):
     t = _normalizar_ticker(ticker)
     dados, fonte = await obter_historico(t, range, intervalo)
     return {"ticker": t, "range": range, "intervalo": intervalo, "fonte": fonte, "pontos": dados}
+
+
+def calcular_variacoes(historico: list[dict], preco: float) -> dict:
+    """Variações (%) do preço atual sobre fechamentos de referência, como nos portais de cotação.
+
+    mes_atual: sobre o último fechamento do mês anterior. ytd: sobre o último fechamento do ano
+    anterior. doze_meses: sobre o fechamento mais antigo da janela de 1 ano. Usa fechamento sem
+    ajuste por proventos (o que o investidor vê na tela). Nulo quando o histórico não alcança.
+    """
+    pontos = []
+    for p in historico:
+        if p.get("fechamento") is None:
+            continue
+        pontos.append((datetime.fromisoformat(p["data"]).astimezone(BRT).date(), p["fechamento"]))
+    if not pontos:
+        return {"mes_atual": None, "ytd": None, "doze_meses": None}
+    ultima = pontos[-1][0]
+
+    def sobre(ref: Optional[float]) -> Optional[float]:
+        return round((preco / ref - 1) * 100, 2) if ref else None
+
+    def ultimo_antes(limite: date) -> Optional[float]:
+        anteriores = [c for d, c in pontos if d < limite]
+        return anteriores[-1] if anteriores else None
+
+    janela = [c for d, c in pontos if d >= ultima - timedelta(days=366)]
+    return {
+        "mes_atual": sobre(ultimo_antes(date(ultima.year, ultima.month, 1))),
+        "ytd": sobre(ultimo_antes(date(ultima.year, 1, 1))),
+        "doze_meses": sobre(janela[0]) if janela and pontos[0][0] <= ultima - timedelta(days=330) else None,
+    }
+
+
+@app.get("/detalhe/{ticker}")
+async def detalhe(ticker: str):
+    """Tudo da tela de um ativo: cotação atual + variações no mês, no ano e em 12 meses.
+
+    `negocios` (número de negócios do dia) não existe nas fontes gratuitas: vem sempre nulo.
+    """
+    t = _normalizar_ticker(ticker)
+    (dados, erros), (hist, fonte) = await asyncio.gather(obter_cotacoes([t]), obter_historico(t, "1y", "1d"))
+    if t not in dados:
+        raise HTTPException(404, f"Cotação de {t} indisponível: {erros.get(t, 'ticker não encontrado')}")
+    cot = dados[t]
+    preco = cot["preco"]
+    variacoes = calcular_variacoes(hist, preco) if preco else {"mes_atual": None, "ytd": None, "doze_meses": None}
+    return {
+        "mercado_aberto": mercado_aberto(),
+        **cot,
+        "negocios": None,
+        "variacoes": {"dia": cot.get("variacao_pct"), **variacoes},
+        "fonte_historico": fonte,
+    }
 
 
 @app.get("/analise/{ticker}")
