@@ -159,6 +159,7 @@
   .lead-aviso { font-size: 12px; color: var(--text-muted); margin: 10px 0 0; }
   .lead-box .btn-primario { width: auto; padding: 11px 26px; }
   .lead-msg { font-size: 14px; margin: 12px 0 0; }
+  .rodape { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; color: var(--text-muted); }
   .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   .auth-erro { font-size: 13px; margin: 6px 0 14px; }
 
@@ -224,7 +225,7 @@
       <button id="btnAbrirLogin" type="button">Entrar</button>
     </div>
     <h2>Seu perfil</h2>
-    <p class="intro-text" id="introText">Antes de ver a recomendação, conte um pouco sobre o seu perfil de investimento.</p>
+    <p class="intro-text" id="introText">Antes de ver a simulação, conte um pouco sobre o seu perfil de investimento.</p>
     <div class="field">
       <label for="faixaRisco">Faixa de risco</label>
       <select id="faixaRisco">
@@ -241,24 +242,16 @@
       <label for="horizonte">Até quando pretende investir?</label>
       <input type="date" id="horizonte" value="2027-08-24" min="2026-09-24">
     </div>
-    <button id="btnComecar" type="button">Ver recomendação</button>
+    <button id="btnComecar" type="button">Ver simulação</button>
   </aside>
 
   <main>
     <h1 data-brand="nome">Simulador de investimentos</h1>
-    <p class="subtitle">Recomendação entre 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em dados históricos até <span id="dataRef"></span>. Versão standalone, sem necessidade de servidor.</p>
+    <p class="subtitle">Simulação educacional que compara 3 FIIs de papel/CRI (KNCR11, HGCR11, MXRF11), 1 ETF de ações (BOVA11) e 2 títulos do Tesouro Direto (Selic e IPCA+), com base em dados históricos até <span id="dataRef"></span>.</p>
 
     <div class="callout">
-      <strong class="label">Limitação importante</strong>
-      A modelagem deste projeto (Prophet e XGBoost, ver <code>resultados_modelos.csv</code>) mostrou que a
-      previsão de preço de curto prazo não supera de forma consistente um baseline de persistência
-      ingênua para os ativos de mercado líquido (FIIs, ETF de ações) — o preço se comporta perto de um
-      passeio aleatório no dia a dia. A exceção é o <strong>Tesouro Selic</strong>, quase determinístico,
-      onde o modelo bate a persistência com folga. Por isso a projeção de renda usa o dividend yield
-      histórico (só FIIs) e a tendência de preço é tratada como especulativa para FII/ETF. O gráfico de
-      evolução mostra uma faixa de incerteza (Monte Carlo) baseada na volatilidade histórica real de
-      cada ativo — não uma linha reta de juros compostos. Protótipo experimental, não recomendação de
-      investimento real.
+      <strong class="label">Aviso importante</strong>
+      <span id="avisoImportante"></span>
     </div>
 
     <section>
@@ -317,15 +310,9 @@
     </section>
 
     <section>
-      <h2>Real vs. previsto — validação do protótipo</h2>
+      <h2>Projeção x resultado real</h2>
       <p class="hint">
-        Simula que você teria aportado o mesmo orçamento mensal, todo mês, nos últimos meses de dados
-        <strong>reais</strong> (preço + dividendos efetivamente pagos, sem simulação) e compara com o
-        que a projeção do sistema estimava para um período de mesma duração. Serve para avaliar a
-        assertividade do protótipo — quanto maior a diferença, menos confiável é a projeção para
-        aquele ativo. <strong>Limitação</strong>: não é um backtest walk-forward rigoroso (a projeção
-        usa estatísticas — DY médio, CAGR — calculadas sobre todo o histórico disponível hoje, não
-        apenas o que estaria disponível no início do período comparado).
+        Compara o que a projeção estimava com o que realmente teria acontecido se você tivesse aportado o mesmo valor todo mês nos últimos meses de dados <strong>reais</strong> (preço e proventos efetivamente pagos). Quanto maior a diferença, menos a projeção acertou para aquele ativo. <strong>Comparação aproximada</strong>: a projeção usa médias calculadas sobre todo o histórico disponível hoje, não apenas o que se conhecia no início do período.
       </p>
       <div class="field" style="max-width:320px;">
         <label for="tickerComparacao">Ativo para comparar</label>
@@ -341,13 +328,14 @@
     <section id="secMeusInvestimentos" style="display:none;">
       <h2>Meus investimentos</h2>
       <p class="hint">
-        Investimentos que você registrou a partir da tabela de recomendação acima (botão
+        Investimentos que você registrou a partir da tabela de simulação acima (botão
         "Registrar"). Cada um mostra o valor de expectativa — a projeção feita no momento do
         registro, que fica fixa como referência — comparado ao valor real acumulado com dados de
         mercado observados desde então, além do lucro/prejuízo real mês a mês.
       </p>
       <div id="meusInvestimentos"></div>
     </section>
+    <footer class="rodape"><p id="rodapeTexto"></p></footer>
   </main>
 </div>
 
@@ -365,6 +353,10 @@ const BRAND = {
     textoSobrePrimaria: '#0b0b0b',
     escura: '#0b0b0b',         // cabeçalho, linhas de destaque
     primariaClara: '#fff6cc',  // fundo de linhas em destaque
+  },
+  textos: {
+    avisoImportante: 'Esta é uma simulação educacional, feita com dados históricos. Ela não é recomendação de investimento personalizada nem consultoria de valores mobiliários, e rentabilidade passada não garante resultados futuros. Os valores são estimativas: no dia a dia, os preços de FIIs e de ações são muito difíceis de prever, por isso o gráfico mostra uma faixa de cenários possíveis e não uma linha única. Já a renda fixa pós-fixada, como o Tesouro Selic, tem resultado bem mais previsível. Para decidir onde investir, converse com um profissional habilitado.',
+    rodape: 'Conteúdo educacional. Dados de fontes públicas (B3, CVM e Tesouro Transparente), sujeitos a defasagem.',
   },
   lead: {
     textoConsentimento: 'Autorizo o contato por e-mail, telefone ou WhatsApp para falar sobre esta simulação e sobre produtos de investimento, e concordo com o tratamento dos meus dados pessoais para esse fim, conforme a Lei Geral de Proteção de Dados (LGPD). Posso revogar o consentimento a qualquer momento.',
@@ -385,6 +377,8 @@ function aplicarMarca() {
   const tel = document.getElementById('brandTelefone');
   tel.textContent = BRAND.telefoneExibicao;
   tel.href = 'tel:' + BRAND.telefoneLink;
+  document.getElementById('avisoImportante').textContent = BRAND.textos.avisoImportante;
+  document.getElementById('rodapeTexto').textContent = '© ' + new Date().getFullYear() + ' ' + BRAND.nome + '. ' + BRAND.textos.rodape + ' ' + BRAND.lead.aviso;
   document.getElementById('leadConsentimentoTexto').textContent = BRAND.lead.textoConsentimento;
   document.getElementById('leadAviso').textContent = BRAND.lead.aviso;
   document.querySelectorAll('[data-brand="nome"]').forEach(e => { e.textContent = BRAND.nome; });
@@ -738,7 +732,7 @@ function renderChartCompare(comp) {
   legReal.innerHTML = '<i style="background:#1a7f37"></i>Real (dados observados)';
   legend.appendChild(legReal);
   const legPrevisto = document.createElement('span');
-  legPrevisto.innerHTML = '<i style="background:'+BRAND.cores.escura+'"></i>Previsto (projeção do modelo)';
+  legPrevisto.innerHTML = '<i style="background:'+BRAND.cores.escura+'"></i>Projeção';
   legend.appendChild(legPrevisto);
 }
 
@@ -757,8 +751,8 @@ function renderComparacao(budget, meses) {
 
   cardsEl.innerHTML = `
     <div class="card"><div class="k">Retorno real (últimos meses)</div><div class="v">${fmtPct(comp.retornoRealPct)}</div></div>
-    <div class="card"><div class="k">Retorno previsto pelo modelo</div><div class="v">${fmtPct(comp.retornoPrevistoPct)}</div></div>
-    <div class="card"><div class="k">Diferença (erro do modelo)</div><div class="v">${comp.erroAbsolutoPp.toFixed(2)} p.p.</div></div>
+    <div class="card"><div class="k">Retorno projetado</div><div class="v">${fmtPct(comp.retornoPrevistoPct)}</div></div>
+    <div class="card"><div class="k">Diferença (projeção x real)</div><div class="v">${comp.erroAbsolutoPp.toFixed(2)} p.p.</div></div>
   `;
   renderChartCompare(comp);
 }
@@ -1000,7 +994,7 @@ async function carregarMeusInvestimentos() {
     return;
   }
   if (!data || !data.length) {
-    container.innerHTML = '<div class="empty">Você ainda não registrou nenhum investimento. Use o botão "Registrar" na tabela de recomendação acima.</div>';
+    container.innerHTML = '<div class="empty">Você ainda não registrou nenhum investimento. Use o botão "Registrar" na tabela de simulação acima.</div>';
     return;
   }
 
@@ -1089,7 +1083,7 @@ function atualizar() {
   }
 
   const { meses, linhas } = resultado;
-  tituloEl.textContent = `Recomendação para faixa de risco '${faixaRisco}' (${meses.toFixed(1)} meses de horizonte)`;
+  tituloEl.textContent = `Simulação para a faixa de risco '${faixaRisco}' (${meses.toFixed(1)} meses de horizonte)`;
 
   const elegiveis = linhas.filter(l => l.destaque);
   if (!elegiveis.length) {
@@ -1105,7 +1099,7 @@ function atualizar() {
   ultimoResultadoSimulacao = { ativo: melhor.ticker, valor: melhor.valorAcumulado };
   const rendimento = melhor.valorAcumulado - melhor.totalAportado;
   cardsEl.innerHTML = `
-    <div class="card"><div class="k">Ativo recomendado</div><div class="v">${melhor.ticker}</div></div>
+    <div class="card"><div class="k">Melhor projeção na faixa</div><div class="v">${melhor.ticker}</div></div>
     <div class="card"><div class="k">Retorno total estimado</div><div class="v">${fmtPct(melhor.retornoTotal)}</div></div>
     <div class="card"><div class="k">Valor acumulado estimado</div><div class="v">${fmtRS(melhor.valorAcumulado)}</div><div class="d">+${fmtRS(rendimento)} de rendimento</div></div>
   `;
@@ -1167,7 +1161,7 @@ atualizar();
 document.getElementById('btnComecar').addEventListener('click', () => {
   atualizar();
   document.getElementById('layout').classList.remove('pre-submit');
-  document.getElementById('introText').textContent = 'Você pode ajustar seu perfil a qualquer momento — a recomendação atualiza automaticamente.';
+  document.getElementById('introText').textContent = 'Você pode ajustar seu perfil a qualquer momento — a simulação atualiza automaticamente.';
 });
 
 // Autenticação opcional: o simulador e o formulário de lead abrem sem conta;

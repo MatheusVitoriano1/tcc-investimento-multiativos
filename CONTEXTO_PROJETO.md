@@ -602,6 +602,20 @@ com o simulador de projeção servindo de isca de geração de leads. Decisões 
 - Reteste do lead no Supabase real (20/09): projeto no ar, mas a tabela `leads` ainda **não existia**
   (erro PGRST205) — falta rodar `supabase_leads.sql`. Nada foi gravado.
 
+### Fase 3 do pivô — cópia e enquadramento legal (20/09, branch `demo-white-label`)
+- Lead testado no Supabase real (tabela `leads` criada pelo usuário): envio aceito; 1 linha de teste
+  ("TESTE AUTOMATIZADO - apagar") ficou na tabela — apagar pelo Table Editor. Uma primeira tentativa de
+  teste não enviou nada por motivo não identificado; 5 repetições seguintes com banco interceptado
+  funcionaram todas.
+- `site_prototipo.html`: "recomendação/recomendado" virou "simulação/melhor projeção na faixa"; sumiram
+  menções a protótipo, projeto, modelo, Prophet/XGBoost e nome de CSV. O aviso longo agora é linguagem de
+  cliente (simulação educacional, não é recomendação personalizada nem consultoria de valores mobiliários,
+  rentabilidade passada não garante futuro, preços de FII/ação difíceis de prever, renda fixa mais
+  previsível). O achado técnico de mercado eficiente continua no `DOCUMENTACAO.md`, fora do site.
+- Textos institucionais foram para `BRAND.textos` (aviso e rodapé); rodapé com aviso legal adicionado.
+- `app_streamlit.py` (versão pessoal) NÃO foi alterado.
+- Revisão jurídica dos textos (LGPD/CVM) por profissional continua recomendada antes de uso comercial.
+
 ## Próximos passos
 ### Relacionados ao pivô comercial (prioridade atual)
 - Desenhar e implementar o formulário/tabela de captura de lead (`leads` no Supabase) com
