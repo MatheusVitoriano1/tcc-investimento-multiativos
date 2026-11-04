@@ -32,16 +32,12 @@ O usuário informa uma faixa de risco, um orçamento mensal e um horizonte de
 investimento, e recebe uma recomendação de alocação entre 6 ativos de 3
 classes diferentes, com projeção de retorno (via simulação de Monte Carlo) e
 uma seção que valida a assertividade do próprio modelo comparando previsão
-com dados reais. Tem login e persistência por usuário (Supabase), com a
-intenção de funcionar como uma ferramenta ativa de acompanhamento de
-investimentos, não só uma demonstração pontual.
+com dados reais. O site funciona **sem login**: os investimentos registrados
+ficam salvos no próprio navegador (localStorage), para acompanhamento ao longo
+do tempo.
 
-**Origem**: o projeto começou como um TCC de Ciência da Computação. Essa
-etapa foi **descontinuada** — o projeto segue como iniciativa pessoal, sem
-mais estar amarrado a critérios, prazos ou template acadêmico. Os materiais
-específicos do TCC (checklist da FAM, rascunho de tema/objetivos, painel de
-status do Checkpoint) ficam arquivados em `arquivo_tcc/` como registro
-histórico, sem influência no desenvolvimento daqui pra frente.
+**Origem**: projeto pessoal de portfólio e estudo em análise de dados e
+machine learning.
 
 **Achado central da modelagem**: a previsão de preço de curto prazo (Prophet,
 XGBoost) não supera de forma consistente um baseline de persistência ingênua
@@ -84,8 +80,8 @@ determinístico, onde o XGBoost bate a persistência com folga. Ver
               servidor, lógica replicada                              Plotly, reaproveita
               em JS)                                                  recomendacao.py direto)
                         │                                                       │
-                 Supabase (Auth + Postgres)                                     │
-              login, tabela `investimentos`                                     │
+          localStorage (investimentos)                                          │
+          Supabase (só leads, opcional)                                         │
                         │                                                       │
                         ▼                                                       ▼
               Netlify (deploy estático)                          Streamlit Community Cloud
@@ -97,7 +93,7 @@ Dois front-ends **paralelos e funcionalmente equivalentes**:
 - **`site_prototipo.html`** — standalone, zero dependências de build, roda
   direto no navegador (arquivo local ou hospedado). Reimplementa em JavaScript
   puro a mesma lógica de `recomendacao.py`, com os dados dos 6 ativos
-  pré-calculados e embutidos no arquivo. É o único com login/persistência.
+  pré-calculados e embutidos no arquivo. É o único com persistência (localStorage, sem login).
 - **`app_streamlit.py`** — interativo, importa `recomendacao.py` diretamente
   (mesmo código Python usado na modelagem), gráficos em Plotly.
 
@@ -291,7 +287,12 @@ gráfico — SVG à mão no site, Plotly no Streamlit):
 **Exclusivo do `site_prototipo.html`**: login, cadastro e persistência de
 investimentos por usuário — ver seção 8.
 
-## 8. Login e persistência (Supabase)
+## 8. Login e persistência (Supabase) — histórico
+
+> **Atualização:** o login foi removido. O site abre direto no simulador e
+> "Meus investimentos" passou a ser salvo no navegador (localStorage). O
+> Supabase continua opcional apenas para o formulário de leads. O conteúdo
+> abaixo documenta a versão anterior, com login.
 
 Backend: [Supabase](https://supabase.com) (Postgres + Auth gerenciados,
 plano gratuito). Projeto: `rteyhxlikrggefdelxep`.
@@ -352,8 +353,8 @@ código do site.
 
 | Componente | Onde | URL |
 |---|---|---|
-| Repositório (privado) | GitHub | `github.com/MatheusVitoriano1/tcc-investimento-multiativos` |
-| Site estático (com login) | Netlify | https://tccvitoriano.netlify.app |
+| Repositório (público) | GitHub | `github.com/MatheusVitoriano1/tcc-investimento-multiativos` |
+| Site estático (sem login) | Netlify | https://tccvitoriano.netlify.app (fora do ar no momento) |
 | App interativo | Streamlit Community Cloud | https://tccvitoriano.streamlit.app |
 | Backend (Auth + DB) | Supabase | projeto `rteyhxlikrggefdelxep` |
 
@@ -374,24 +375,20 @@ localmente.
 ## 10. Estrutura de arquivos
 
 ```
-TCC/
+projeto/
 ├── coleta_dados.py          # scraping das 3 fontes de dados
 ├── eda.py                   # limpeza, features, gráficos exploratórios
 ├── modelagem.py              # treino/avaliação dos 4 modelos por ativo
 ├── recomendacao.py           # lógica de recomendação (usada pelo Streamlit
 │                             #   e replicada em JS no site)
 ├── app_streamlit.py          # front-end interativo (Streamlit + Plotly)
-├── site_prototipo.html       # front-end standalone (HTML/CSS/JS + Supabase)
+├── site_prototipo.html       # front-end standalone (HTML/CSS/JS, sem login)
+├── api_cotacoes.py           # API de cotações da B3 (FastAPI + SSE)
 ├── supabase_schema.sql       # schema da tabela `investimentos` + RLS
 ├── requirements.txt          # dependências enxutas do app publicado
 ├── requirements-dev.txt      # + dependências do pipeline (local only)
 ├── CONTEXTO_PROJETO.md       # log cronológico de decisões (memória de sessão)
 ├── DOCUMENTACAO.md           # este arquivo
-├── arquivo_tcc/               # material da fase acadêmica descontinuada (histórico)
-│   ├── checkpoint.html            #   painel de status do Checkpoint (FAM)
-│   ├── tema_objetivos_rascunho.md #   rascunho de título/problema/objetivos
-│   ├── Critérios obrigatórios.pdf         #   documento oficial da FAM
-│   └── Manual_TCC_FAM_2026_2_Revisado.pdf #   documento oficial da FAM
 └── dados/
     ├── cotacoes_mercado.csv       # FIIs + ETF (B3 COTAHIST)
     ├── indicadores_mensais_fiis.csv # DY, P/VP etc. (CVM, só FII)

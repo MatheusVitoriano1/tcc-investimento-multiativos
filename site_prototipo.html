@@ -245,32 +245,8 @@
   <div class="brand-logo" id="brandLogo"></div>
   <div class="brand-contato">Fale com um especialista: <a id="brandTelefone" href="#"></a></div>
 </header>
-<div class="auth-screen" id="authScreen">
-  <div class="auth-card">
-    <h2>Entrar</h2>
-    <p class="intro-text">Opcional: entre com e-mail e senha para registrar e acompanhar seus investimentos.</p>
-    <div class="field">
-      <label for="authEmail">E-mail</label>
-      <input type="email" id="authEmail" autocomplete="email">
-    </div>
-    <div class="field">
-      <label for="authSenha">Senha</label>
-      <input type="password" id="authSenha" autocomplete="current-password">
-    </div>
-    <p class="auth-erro" id="authErro" style="display:none;"></p>
-    <button id="btnEntrar" type="button" class="btn-primario">Entrar</button>
-    <button id="btnCriarConta" type="button" class="btn-secundario">Criar conta</button>
-    <button id="btnFecharLogin" type="button" class="btn-secundario">Continuar sem entrar</button>
-  </div>
-</div>
-
 <div class="layout pre-submit" id="layout">
   <aside>
-    <div class="conta-bar">
-      <span id="contaEmail"></span>
-      <button id="btnSair" type="button" style="display:none;">Sair</button>
-      <button id="btnAbrirLogin" type="button">Entrar</button>
-    </div>
     <h2>Seu perfil</h2>
     <p class="intro-text" id="introText">Antes de ver a simulação, conte um pouco sobre o seu perfil de investimento.</p>
     <div class="field">
@@ -384,7 +360,7 @@
       </div>
     </section>
 
-    <section id="secMeusInvestimentos" style="display:none;">
+    <section id="secMeusInvestimentos">
       <h2>Meus investimentos</h2>
       <p class="hint">
         Investimentos que você registrou a partir da tabela de simulação acima (botão
@@ -486,7 +462,6 @@ try {
 } catch (e) {
   console.error('Supabase não inicializado — configure SUPABASE_URL e SUPABASE_ANON_KEY.', e);
 }
-let usuarioAtual = null;
 let ultimoResultadoSimulacao = null;
 
 const DATA_REFERENCIA = new Date('2026-08-24T00:00:00');
@@ -859,61 +834,30 @@ function renderComparacao(budget, meses) {
   renderChartCompare(comp);
 }
 
-// ---- Autenticação (Supabase Auth) -----------------------------------------
+// ---- Meus investimentos: armazenamento local (sem login) -------------------
+// O site funciona sem conta: os investimentos registrados ficam salvos no
+// próprio navegador (localStorage). Nenhum dado sai do computador do usuário.
 
-function traduzErroAuth(error) {
-  const msg = error && error.message || '';
-  if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
-  if (msg.includes('User already registered')) return 'Já existe uma conta com esse e-mail — tente entrar.';
-  if (msg.includes('Password should be at least')) return 'A senha precisa ter pelo menos 6 caracteres.';
-  if (msg.includes('Unable to validate email address')) return 'E-mail inválido.';
-  if (msg.includes('Failed to fetch')) return 'Não foi possível conectar ao servidor — verifique se o Supabase está configurado (SUPABASE_URL/SUPABASE_ANON_KEY).';
-  return msg || 'Não foi possível completar a operação.';
+const CHAVE_INVESTIMENTOS = 'meusInvestimentos.v1';
+
+function lerInvestimentosLocais() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_INVESTIMENTOS);
+    const lista = bruto ? JSON.parse(bruto) : [];
+    return Array.isArray(lista) ? lista : [];
+  } catch (e) {
+    return [];
+  }
 }
 
-function mostrarErroAuth(msg, ok) {
-  const el = document.getElementById('authErro');
-  if (!msg) { el.style.display = 'none'; return; }
-  el.textContent = msg;
-  el.style.display = 'block';
-  el.style.color = ok ? 'var(--ok)' : '#c92a2a';
-}
-
-async function entrar() {
-  if (!sb) { mostrarErroAuth('Este site ainda não foi conectado a um banco de dados (Supabase não configurado).'); return; }
-  const email = document.getElementById('authEmail').value.trim();
-  const senha = document.getElementById('authSenha').value;
-  mostrarErroAuth('');
-  const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-  if (error) mostrarErroAuth(traduzErroAuth(error));
-}
-
-async function criarConta() {
-  if (!sb) { mostrarErroAuth('Este site ainda não foi conectado a um banco de dados (Supabase não configurado).'); return; }
-  const email = document.getElementById('authEmail').value.trim();
-  const senha = document.getElementById('authSenha').value;
-  mostrarErroAuth('');
-  const { error } = await sb.auth.signUp({ email, password: senha });
-  if (error) { mostrarErroAuth(traduzErroAuth(error)); return; }
-  mostrarErroAuth('Conta criada! Se a confirmação por e-mail estiver ativada no projeto, verifique sua caixa de entrada antes de entrar.', true);
-}
-
-async function sair() {
-  if (sb) await sb.auth.signOut();
-}
-
-function abrirLogin() { document.getElementById('authScreen').style.display = 'flex'; }
-function fecharLogin() { document.getElementById('authScreen').style.display = 'none'; }
-
-// Login é opcional: o simulador e o formulário de lead funcionam sem conta.
-// Estar logado só libera "Registrar" e "Meus investimentos".
-function atualizarVisibilidadeAuth() {
-  const logado = !!usuarioAtual;
-  document.getElementById('contaEmail').textContent = logado ? usuarioAtual.email : '';
-  document.getElementById('btnSair').style.display = logado ? '' : 'none';
-  document.getElementById('btnAbrirLogin').style.display = logado ? 'none' : '';
-  document.getElementById('secMeusInvestimentos').style.display = logado ? '' : 'none';
-  if (logado) { fecharLogin(); carregarMeusInvestimentos(); }
+function gravarInvestimentosLocais(lista) {
+  try {
+    localStorage.setItem(CHAVE_INVESTIMENTOS, JSON.stringify(lista));
+    return true;
+  } catch (e) {
+    alert('Não foi possível salvar no navegador (armazenamento local indisponível).');
+    return false;
+  }
 }
 
 // ---- Mercado ao vivo (API de cotações) ------------------------------------
@@ -1342,15 +1286,15 @@ async function enviarLead(ev) {
   mostrarMsgLead('Obrigado! Recebemos seu contato e um consultor falará com você em breve.', true);
 }
 
-// ---- Meus investimentos (persistidos no Supabase) --------------------------
+// ---- Meus investimentos (salvos no navegador) ------------------------------
 
 async function salvarInvestimento(ticker, classeAtivo, retornoTotalPct, valorAcumuladoRs) {
-  if (!usuarioAtual) { abrirLogin(); return; }
   const horizonteStr = document.getElementById('horizonte').value;
   const faixaRisco = document.getElementById('faixaRisco').value;
   const budget = parseFloat(document.getElementById('budget').value) || 0;
-  const { error } = await sb.from('investimentos').insert({
-    user_id: usuarioAtual.id,
+  const lista = lerInvestimentosLocais();
+  lista.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
     ticker,
     classe_ativo: classeAtivo,
     faixa_risco: faixaRisco,
@@ -1358,19 +1302,16 @@ async function salvarInvestimento(ticker, classeAtivo, retornoTotalPct, valorAcu
     data_horizonte: horizonteStr,
     retorno_previsto_pct_horizonte: retornoTotalPct,
     valor_previsto_horizonte_rs: valorAcumuladoRs,
+    data_criacao: new Date().toISOString(),
   });
-  if (error) {
-    alert('Erro ao registrar investimento: ' + error.message);
-    return;
-  }
+  if (!gravarInvestimentosLocais(lista)) return;
   await carregarMeusInvestimentos();
   document.getElementById('meusInvestimentos').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function excluirInvestimento(id) {
   if (!confirm('Excluir este investimento registrado?')) return;
-  const { error } = await sb.from('investimentos').delete().eq('id', id);
-  if (error) { alert('Erro ao excluir: ' + error.message); return; }
+  gravarInvestimentosLocais(lerInvestimentosLocais().filter(inv => inv.id !== id));
   await carregarMeusInvestimentos();
 }
 
@@ -1466,19 +1407,11 @@ function renderGraficoGanhoMensal(svgId, ganhoMensalRs) {
 
 async function carregarMeusInvestimentos() {
   const container = document.getElementById('meusInvestimentos');
-  if (!usuarioAtual) { container.innerHTML = ''; return; }
-  container.innerHTML = '<p class="hint">Carregando...</p>';
+  const data = lerInvestimentosLocais()
+    .slice()
+    .sort((a, b) => (b.data_criacao || '').localeCompare(a.data_criacao || ''));
 
-  const { data, error } = await sb.from('investimentos')
-    .select('*')
-    .eq('user_id', usuarioAtual.id)
-    .order('data_criacao', { ascending: false });
-
-  if (error) {
-    container.innerHTML = `<div class="empty">Erro ao carregar seus investimentos: ${error.message}</div>`;
-    return;
-  }
-  if (!data || !data.length) {
+  if (!data.length) {
     container.innerHTML = '<div class="empty">Você ainda não registrou nenhum investimento. Use o botão "Registrar" na tabela de simulação acima.</div>';
     return;
   }
@@ -1650,11 +1583,6 @@ document.getElementById('btnComecar').addEventListener('click', () => {
 
 // Autenticação opcional: o simulador e o formulário de lead abrem sem conta;
 // sb.auth cuida de persistir a sessão entre visitas de quem escolher entrar.
-document.getElementById('btnEntrar').addEventListener('click', entrar);
-document.getElementById('btnCriarConta').addEventListener('click', criarConta);
-document.getElementById('btnSair').addEventListener('click', sair);
-document.getElementById('btnAbrirLogin').addEventListener('click', abrirLogin);
-document.getElementById('btnFecharLogin').addEventListener('click', fecharLogin);
 document.getElementById('leadForm').addEventListener('submit', enviarLead);
 document.getElementById('btnAddAtivo').addEventListener('click', adicionarAtivo);
 document.getElementById('mercadoBusca').addEventListener('input', sugerirAtivos);
@@ -1687,17 +1615,7 @@ document.getElementById('segTipo').addEventListener('click', (e) => {
 });
 conectarMercado();
 sincronizarAtivosApi();
-atualizarVisibilidadeAuth();
-document.getElementById('authSenha').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
-
-if (sb) {
-  sb.auth.onAuthStateChange((_event, session) => {
-    usuarioAtual = session ? session.user : null;
-    atualizarVisibilidadeAuth();
-  });
-} else {
-  mostrarErroAuth('Este site ainda não foi conectado a um banco de dados (Supabase não configurado) — login e registro de investimentos indisponíveis por enquanto.');
-}
+carregarMeusInvestimentos();
 
 // Delegação de eventos: os botões "Registrar" (tabela de recomendação) e
 // "Excluir" (Meus investimentos) são recriados a cada atualização do DOM,
